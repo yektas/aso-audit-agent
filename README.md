@@ -52,22 +52,12 @@ A more detailed flow diagram is available at [`docs/agent-flow.html`](docs/agent
 
 ## Decisions Made
 
-**Workflow over loose tool calls.** The audit has a fixed sequence with a hard confirmation gate in the middle, so a Mastra workflow with `suspend`/`resume` was the right fit. It also made the parallel scoring branches (copy, visuals, market signals) straightforward to wire up.
-
-**Two agents, not one.** The conversation agent handles the chat. The report agent handles scoring. Keeping them separate means the report agent only ever sees the evidence passed to it — no conversation history, no way for listing text to bleed into the scores.
-
-**I scored 9 of the 10 rubric dimensions.** The one I dropped:
-
-- **Keyword field** — this is private App Store Connect metadata. It's never visible on the public listing page, so there's nothing to score. Faking it would've violated the "cite the specific evidence" requirement.
-
-**App preview video is scored on existence only.** When a listing has a preview video, the Firecrawl markdown renders the player-control overlay (`assets/images/video-control/…`) and the HTML carries a `<video>` element — so video *presence* is reliably detectable from public data. I can't analyze the video itself (hook, length, silent playback), so this dimension is scored deterministically: present earns partial credit, absent is flagged as a real gap. Its weight is the rubric's **5%**.
-
-**Title carries 25%** (above the rubric's 20%) because it's the dimension with the strongest public evidence; the rest of the keyword field's freed weight is absorbed there. Every other scored dimension — including **Description at 10%** and **App preview video at 5%** — sits at its rubric weight. Weights still sum to 100.
-
-**Firecrawl returns markdown + HTML, not JSON.** Screenshots are extracted from the HTML; subtitle, promotional text, and in-app events from the markdown. The earlier JSON extraction format was redundant (it only covered fields the markdown already yields) and cost an extra LLM pass per audit, so it was dropped.
-
-**Competitor comparison is a related-search sample, not a category ranking.** Apple's public search API returns related apps for a search term — it doesn't expose a ranked list of top competitors. The report labels these as comparison signals rather than "top 3 competitors" to be honest about what the data actually is.
-
-**Every LLM call has a deterministic fallback.** If the model times out or returns something unparseable, the audit falls back to rule-based scores from the collected metadata. The result is lower confidence, not a broken run.
-
-**Anonymous sessions, no login.** Conversation threads are stored per browser visitor using Mastra memory. You can close the tab and come back to previous audits without an account.
+- **Workflow over loose tool calls.** The audit follows a fixed sequence with a confirmation gate in the middle, so a Mastra workflow with `suspend`/`resume` fit best — and made the parallel scoring branches easy to wire up.
+- **Two agents, not one.** The conversation agent handles chat; the report agent handles scoring. Separating them keeps conversation text from bleeding into the scores.
+- **9 of 10 rubric dimensions scored.** The **keyword field** is dropped — it's private App Store Connect metadata, never visible publicly, so there's nothing to cite.
+- **App preview video scored on presence only.** Video presence is reliably detectable from public data, but the video itself can't be analyzed — so present earns partial credit, absent is flagged a gap. Weight: rubric's **5%**.
+- **Title carries 25%** (vs. rubric's 20%) since it has the strongest public evidence and absorbs the dropped keyword field's weight. Every other dimension stays at its rubric weight; total still sums to 100.
+- **Firecrawl returns markdown + HTML, not JSON.** Screenshots come from the HTML, the rest from markdown. The old JSON pass was redundant and cost an extra LLM call, so it was dropped.
+- **Competitor comparison is a related-search sample, not a ranking.** Apple's public API returns related apps, not ranked competitors — so the report labels them as comparison signals.
+- **Every LLM call has a deterministic fallback.** On timeout or unparseable output, the audit falls back to rule-based scores. The result is lower confidence, not a broken run.
+- **Anonymous sessions, no login.** Threads are stored per browser visitor via Mastra memory, so you can return to past audits without an account.
