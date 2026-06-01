@@ -9,7 +9,7 @@ import {
   isListingConfirmationPayload,
   isWorkflowSnapshotPart,
   type WorkflowPart,
-} from './workflow-parts'
+} from '@/lib/workflow-parts'
 import { LISTING_AUDIT_STEP_IDS } from '@/mastra/workflows/listing-audit/contract'
 
 export function WorkflowEvent({

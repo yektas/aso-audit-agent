@@ -1,41 +1,27 @@
 import { convertMessages, MessageList } from '@mastra/core/agent'
 import type { MastraMemory } from '@mastra/core/memory'
 import { handleWorkflowStream, type WorkflowDataPart } from '@mastra/ai-sdk'
-import { createUIMessageStreamResponse, type UIMessage } from 'ai'
+import { createUIMessageStreamResponse, type UIMessage, type UIMessageChunk } from 'ai'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 
 import { getConversationMemory, getOwnedConversationThread } from '@/lib/conversation-memory'
 import { appendVisitorCookie, getVisitorSession } from '@/lib/visitor-session'
+import { getWorkflowRunId, isWorkflowPart, withPersistedWorkflowRunId } from '@/lib/workflow-parts'
 import { mastra } from '@/mastra'
 import { LISTING_AUDIT_STEP_IDS, LISTING_AUDIT_WORKFLOW_KEY } from '@/mastra/workflows/listing-audit/contract'
 import { workflowRejectedOutputSchema, workflowReportOutputSchema } from '@/mastra/workflows/listing-audit/schemas'
 
-export type WorkflowResumeParams = {
-  runId?: unknown
-  resumeData?: Record<string, unknown>
-  threadId?: unknown
-}
+export const workflowResumeParamsSchema = z.object({
+  runId: z.unknown().optional(),
+  resumeData: z.record(z.string(), z.unknown()).optional(),
+  threadId: z.unknown().optional(),
+})
+
+export type WorkflowResumeParams = z.infer<typeof workflowResumeParamsSchema>
 
 function readString(value: unknown) {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
-}
-
-function isWorkflowPart(part: unknown): part is WorkflowDataPart {
-  return (
-    typeof part === 'object' &&
-    part !== null &&
-    'type' in part &&
-    (part.type === 'data-tool-workflow' || part.type === 'data-workflow') &&
-    'data' in part &&
-    part.data !== null &&
-    typeof part.data === 'object'
-  )
-}
-
-function getWorkflowRunId(part: WorkflowDataPart) {
-  const persistedRunId =
-    'runId' in part.data && typeof part.data.runId === 'string' ? part.data.runId : null
-  return part.id ?? persistedRunId
 }
 
 async function loadStoredMessages(memory: MastraMemory, threadId: string, resourceId: string) {
@@ -50,6 +36,7 @@ function hasSuspendedRun(messages: UIMessage[], runId: string) {
     message.parts.some(
       (part) =>
         isWorkflowPart(part) &&
+        (part.type === 'data-tool-workflow' || part.type === 'data-workflow') &&
         getWorkflowRunId(part) === runId &&
         part.type === 'data-tool-workflow' &&
         part.data.status === 'suspended',
@@ -108,13 +95,7 @@ async function persistFinalWorkflowPart(
     return
   }
 
-  const persistedPart = {
-    ...finalPart,
-    data: {
-      ...finalPart.data,
-      runId: finalPart.id,
-    },
-  } as WorkflowDataPart
+  const persistedPart = withPersistedWorkflowRunId(finalPart)
   const contextText = getWorkflowContextText(finalPart)
   const uiMessages: UIMessage[] = [
     ...(contextText
@@ -177,5 +158,8 @@ export async function handleWorkflowResume(req: Request, params: WorkflowResumeP
     console.error('Unable to persist completed audit workflow event.', error)
   })
 
-  return appendVisitorCookie(createUIMessageStreamResponse({ stream: clientStream }), session)
+  return appendVisitorCookie(
+    createUIMessageStreamResponse({ stream: clientStream as unknown as ReadableStream<UIMessageChunk> }),
+    session,
+  )
 }

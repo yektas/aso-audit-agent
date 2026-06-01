@@ -2,6 +2,20 @@ import { z } from "zod";
 
 import { LISTING_AUDIT_STEP_IDS } from "./contract";
 
+export const asoFactorIds = [
+  "title",
+  "subtitle",
+  "description",
+  "screenshots",
+  "ratingsReviews",
+  "icon",
+  "conversionSignals",
+  "competitivePosition",
+] as const;
+
+export const asoFactorIdSchema = z.enum(asoFactorIds);
+export type AsoFactorId = z.infer<typeof asoFactorIdSchema>;
+
 export const workflowInputSchema = z.object({
   app: z.string().min(1).describe("An App Store URL or numeric Apple App Store app ID"),
 });
@@ -88,16 +102,7 @@ export const reportInputSchema = confirmationOutputSchema.extend({
 });
 
 export const scoreFactorSchema = z.object({
-  factor: z.enum([
-    "title",
-    "subtitle",
-    "description",
-    "screenshots",
-    "ratingsReviews",
-    "icon",
-    "conversionSignals",
-    "competitivePosition",
-  ]),
+  factor: asoFactorIdSchema,
   label: z.string(),
   score: z
     .number()

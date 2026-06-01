@@ -1,9 +1,13 @@
 import type { WorkflowDataPart, WorkflowStepDataPart } from '@mastra/ai-sdk'
 
-import type { ListingConfirmationPayload } from './listing-confirmation-card'
+import type { ListingConfirmationPayload } from '@/components/conversation/listing-confirmation-card'
 import { LISTING_AUDIT_STEP_IDS, listingConfirmationSuspendSchema } from '@/mastra/workflows/listing-audit/contract'
-import type { WorkflowRejectedOutput, WorkflowReportOutput } from '@/mastra/workflows/listing-audit/schemas'
-import { workflowRejectedOutputSchema, workflowReportOutputSchema } from '@/mastra/workflows/listing-audit/schemas'
+import {
+  workflowRejectedOutputSchema,
+  workflowReportOutputSchema,
+  type WorkflowRejectedOutput,
+  type WorkflowReportOutput,
+} from '@/mastra/workflows/listing-audit/schemas'
 
 type WorkflowData = WorkflowDataPart['data']
 export type WorkflowPart = WorkflowDataPart | WorkflowStepDataPart
@@ -32,8 +36,21 @@ export function isWorkflowPart(part: unknown): part is WorkflowPart {
 }
 
 export function getWorkflowRunId(part: WorkflowDataPart) {
-  const data = part.data as WorkflowData & { runId?: unknown }
-  return part.id ?? (typeof data.runId === 'string' ? data.runId : null)
+  if ('runId' in part.data && typeof part.data.runId === 'string') {
+    return part.data.runId
+  }
+
+  return part.id
+}
+
+export function withPersistedWorkflowRunId(part: WorkflowDataPart) {
+  return {
+    ...part,
+    data: {
+      ...part.data,
+      runId: part.id,
+    },
+  } satisfies WorkflowDataPart & { data: WorkflowDataPart['data'] & { runId: string } }
 }
 
 export function getPendingListingConfirmation(messages: Array<{ parts: unknown[] }>) {

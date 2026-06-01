@@ -1,25 +1,27 @@
 import { convertMessages, MessageList } from '@mastra/core/agent'
 import type { MastraMemory } from '@mastra/core/memory'
 import { handleChatStream, type WorkflowDataPart } from '@mastra/ai-sdk'
-import { createUIMessageStreamResponse, type UIMessage } from 'ai'
+import { createUIMessageStreamResponse, safeValidateUIMessages, type UIMessage, type UIMessageChunk } from 'ai'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 
 import { appendVisitorCookie, getVisitorSession } from '@/lib/visitor-session'
 import { CONVERSATION_AGENT_ID, getConversationMemory, getOwnedConversationThread } from '@/lib/conversation-memory'
+import { getWorkflowRunId, isWorkflowPart, isWorkflowSnapshotPart, withPersistedWorkflowRunId } from '@/lib/workflow-parts'
 import { handleWorkflowResume } from '@/lib/workflow-resume'
 import { mastra } from '@/mastra'
 import { asoAuditModel } from '@/mastra/model'
 import { LISTING_AUDIT_WORKFLOW_KEY } from '@/mastra/workflows/listing-audit/contract'
 
-type ChatParams = {
-  memory?: Record<string, unknown>
-  messages?: unknown[]
-  threadId?: string
-  workflowResume?: {
-    confirmed?: unknown
-    runId?: unknown
-  }
-} & Record<string, unknown>
+const chatParamsSchema = z.object({
+  messages: z.unknown().optional(),
+  threadId: z.string().trim().min(1).optional(),
+  trigger: z.enum(['submit-message', 'regenerate-message']).optional(),
+  workflowResume: z.object({
+    confirmed: z.boolean(),
+    runId: z.string().trim().min(1),
+  }).optional(),
+}).strict()
 
 const THREAD_TITLE_INSTRUCTIONS = 'Generate a concise title of at most five words for this App Store audit conversation.'
 
@@ -56,35 +58,11 @@ function getUiMessagesForTitleGeneration(messages: unknown[] | undefined) {
 }
 
 function isSuspendedNestedWorkflowPart(part: unknown): part is WorkflowDataPart {
-  return (
-    typeof part === 'object' &&
-    part !== null &&
-    'type' in part &&
-    part.type === 'data-tool-workflow' &&
-    'data' in part &&
-    part.data !== null &&
-    typeof part.data === 'object' &&
-    'status' in part.data &&
-    part.data.status === 'suspended'
-  )
+  return isWorkflowPart(part) && isWorkflowSnapshotPart(part) && part.type === 'data-tool-workflow' && part.data.status === 'suspended'
 }
 
 function isNestedWorkflowPart(part: unknown): part is WorkflowDataPart {
-  return (
-    typeof part === 'object' &&
-    part !== null &&
-    'type' in part &&
-    (part.type === 'data-tool-workflow' || part.type === 'data-workflow') &&
-    'data' in part &&
-    part.data !== null &&
-    typeof part.data === 'object' &&
-    'status' in part.data
-  )
-}
-
-function getWorkflowRunId(part: WorkflowDataPart) {
-  const data = part.data as WorkflowDataPart['data'] & { runId?: unknown }
-  return part.id ?? (typeof data.runId === 'string' ? data.runId : null)
+  return isWorkflowPart(part) && isWorkflowSnapshotPart(part)
 }
 
 async function getAutoResumeOverride(memory: MastraMemory, threadId: string, resourceId: string) {
@@ -147,19 +125,13 @@ async function persistSuspendedWorkflowPart(
     return
   }
 
-  const persistedPart = {
-    ...suspendedPart,
-    data: {
-      ...suspendedPart.data,
-      runId: suspendedPart.id,
-    },
-  } as WorkflowDataPart
+  const persistedPart = withPersistedWorkflowRunId(suspendedPart)
   const messages = convertMessages([
     {
       id: crypto.randomUUID(),
       role: 'assistant',
       parts: [persistedPart],
-    } as UIMessage,
+    } satisfies UIMessage,
   ]).to('Mastra.V2')
 
   await memory.saveMessages({
@@ -168,7 +140,13 @@ async function persistSuspendedWorkflowPart(
 }
 
 export async function POST(req: Request) {
-  const params = (await req.json()) as ChatParams
+  const parsedParams = chatParamsSchema.safeParse(await req.json())
+  if (!parsedParams.success) {
+    const session = getVisitorSession(req)
+    return appendVisitorCookie(NextResponse.json({ error: 'The chat request body was invalid.' }, { status: 400 }), session)
+  }
+
+  const params = parsedParams.data
   const threadId = getThreadId(params.threadId)
 
   if (params.workflowResume) {
@@ -179,6 +157,14 @@ export async function POST(req: Request) {
         confirmed: params.workflowResume.confirmed,
       },
     })
+  }
+
+  const validatedMessages = await safeValidateUIMessages<UIMessage>({
+    messages: params.messages ?? [],
+  })
+  if (!validatedMessages.success) {
+    const session = getVisitorSession(req)
+    return appendVisitorCookie(NextResponse.json({ error: 'The chat messages were invalid.' }, { status: 400 }), session)
   }
 
   const session = getVisitorSession(req)
@@ -195,7 +181,7 @@ export async function POST(req: Request) {
   }
 
   let resolvedThread = thread
-  const titleMessages = getUiMessagesForTitleGeneration(params.messages)
+  const titleMessages = getUiMessagesForTitleGeneration(validatedMessages.data)
 
   if (!resolvedThread.title && titleMessages.length > 0) {
     try {
@@ -221,33 +207,36 @@ export async function POST(req: Request) {
   }
 
   const autoResumeSuspendedTools = await getAutoResumeOverride(memory, thread.id, session.resourceId)
-  const mastraParams = { ...params }
-  delete mastraParams.threadId
-  delete mastraParams.memory
+  const streamParams = {
+    // Mastra's AI SDK currently carries its own bundled v6 UI message types.
+    messages: validatedMessages.data as never[],
+    ...(params.trigger ? { trigger: params.trigger } : {}),
+    ...(autoResumeSuspendedTools === false ? { autoResumeSuspendedTools } : {}),
+    memory: {
+      thread: {
+        id: resolvedThread.id,
+        title: resolvedThread.title,
+        metadata: resolvedThread.metadata,
+      },
+      resource: session.resourceId,
+    },
+  }
   const stream = await handleChatStream({
     version: 'v6',
     mastra,
     agentId: CONVERSATION_AGENT_ID,
     sendReasoning: true,
-    params: {
-      ...mastraParams,
-      ...(autoResumeSuspendedTools === false ? { autoResumeSuspendedTools } : {}),
-      memory: {
-        thread: {
-          id: resolvedThread.id,
-          title: resolvedThread.title,
-          metadata: resolvedThread.metadata,
-        },
-        resource: session.resourceId,
-      },
-    } as Parameters<typeof handleChatStream>[0]['params'],
+    params: streamParams,
   })
   const [clientStream, persistenceStream] = stream.tee()
   void persistSuspendedWorkflowPart(persistenceStream, memory, thread.id, session.resourceId).catch((error: unknown) => {
     console.error('Unable to persist suspended audit workflow event.', error)
   })
 
-  return appendVisitorCookie(createUIMessageStreamResponse({ stream: clientStream }), session)
+  return appendVisitorCookie(
+    createUIMessageStreamResponse({ stream: clientStream as unknown as ReadableStream<UIMessageChunk> }),
+    session,
+  )
 }
 
 export async function GET(req: Request) {

@@ -8,6 +8,8 @@ import { lookupAppMetadata } from "../../tools/app-lookup-tool";
 import { LISTING_AUDIT_STEP_IDS, listingConfirmationResumeSchema, listingConfirmationSuspendSchema } from "./contract";
 import {
   actionPlanOutputSchema,
+  asoFactorIds,
+  type AsoFactorId,
   appMetadataSchema,
   confirmationOutputSchema,
   listingPageEvidenceOutputSchema,
@@ -30,7 +32,7 @@ const FACTOR_WEIGHTS = {
   icon: 5,
   conversionSignals: 5,
   competitivePosition: 5,
-} as const;
+} as const satisfies Record<AsoFactorId, number>;
 
 export const fetchMetadataStep = createStep({
   id: LISTING_AUDIT_STEP_IDS.fetchMetadata,
@@ -115,15 +117,18 @@ export const assembleScoreCardStep = createStep({
     const visualAssets = inputData[LISTING_AUDIT_STEP_IDS.scoreVisualAssets];
     const marketSignals = inputData[LISTING_AUDIT_STEP_IDS.scoreMarketSignals];
     const returnedFactors = [...listingText.factors, ...visualAssets.factors, ...marketSignals.factors];
+    const factorById = new Map(returnedFactors.map((factor) => [factor.factor, factor]));
+    const missingFactors = asoFactorIds.filter((factorId) => !factorById.has(factorId));
 
-    if (new Set(returnedFactors.map(({ factor }) => factor)).size !== 8) {
-      throw new Error("ASO factor scoring did not return all eight distinct factors.");
+    if (missingFactors.length > 0 || factorById.size !== asoFactorIds.length) {
+      throw new Error(
+        `ASO factor scoring returned an incomplete score card. Missing: ${missingFactors.join(", ") || "none"}. Received: ${Array.from(factorById.keys()).join(", ") || "none"}.`,
+      );
     }
 
-    const factorById = new Map(returnedFactors.map((factor) => [factor.factor, factor]));
-    const scoreCard = Object.entries(FACTOR_WEIGHTS).map(([factor, weight]) => ({
-      ...factorById.get(factor as keyof typeof FACTOR_WEIGHTS)!,
-      weight,
+    const scoreCard = asoFactorIds.map((factor) => ({
+      ...factorById.get(factor)!,
+      weight: FACTOR_WEIGHTS[factor],
     }));
     const overallScore = scoreCard.reduce((total, factor) => total + factor.score * factor.weight, 0) / 10;
     const evidence = listingText.input;

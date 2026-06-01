@@ -4,7 +4,7 @@ import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { getPendingListingConfirmation } from '@/components/conversation/workflow-parts'
+import { getPendingListingConfirmation } from '@/lib/workflow-parts'
 import type { ConversationMessage, ConversationThread } from '@/components/conversation/message-types'
 import { readJsonOrThrow, toUiError, type UiErrorState } from '@/lib/ui-error'
 

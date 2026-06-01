@@ -4,8 +4,8 @@ import type { WorkflowDataPart } from '@mastra/ai-sdk'
 import { Check, ChevronDown, ChevronUp, Circle, LoaderCircle, Route, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
+import { isWorkflowSnapshotPart, type WorkflowPart } from '@/lib/workflow-parts'
 import { LISTING_AUDIT_STEP_IDS } from '@/mastra/workflows/listing-audit/contract'
-import { isWorkflowSnapshotPart, type WorkflowPart } from './workflow-parts'
 
 const RUNNING_STEP_LABELS: Record<string, string> = {
   [LISTING_AUDIT_STEP_IDS.fetchMetadata]: 'Finding the App Store listing',

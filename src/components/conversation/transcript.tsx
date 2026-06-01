@@ -21,7 +21,7 @@ import {
   isWorkflowPart,
   isWorkflowSnapshotPart,
   type WorkflowPart,
-} from "./workflow-parts";
+} from "@/lib/workflow-parts";
 import type { ConversationMessage } from "./message-types";
 import { Shimmer } from "../ai-elements/shimmer";
 
