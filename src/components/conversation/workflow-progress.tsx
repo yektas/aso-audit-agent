@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronUp, Circle, Clock, LoaderCircle, Route, Tria
 import { useEffect, useRef } from 'react'
 
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { isWorkflowSnapshotPart, type WorkflowPart } from '@/lib/workflow-parts'
+import { getRejectedWorkflowOutput, isWorkflowSnapshotPart, type WorkflowPart } from '@/lib/workflow-parts'
 import { LISTING_AUDIT_STEP_IDS } from '@/mastra/workflows/listing-audit/contract'
 
 const RUNNING_STEP_LABELS: Record<string, string> = {
@@ -118,11 +118,12 @@ function getStepState(part: WorkflowDataPart, stepId: string) {
   const activeStepIndex = activeStep ? getStepIndex(activeStep) : -1
   const isFailed = status === 'failed'
   const isActive = status === 'running' || status === 'suspended'
+  const isRejected = getRejectedWorkflowOutput(part.data) !== null || part.data.status === 'bailed'
 
   return {
     isDone:
       status === 'success' ||
-      (part.data.status === 'success' && !isFailed) ||
+      (!isRejected && part.data.status === 'success' && !isFailed) ||
       (!isFailed && activeStepIndex >= 0 && stepIndex >= 0 && stepIndex < activeStepIndex),
     isActive,
     isFailed,
@@ -156,12 +157,15 @@ function getWorkflowProgressState(part: WorkflowDataPart) {
   const activeStep = getActiveStepId(part)
   const runningSteps = getRunningStepIds(part)
   const failedStep = getFailedStepIds(part)[0]
+  const isRejected = getRejectedWorkflowOutput(part.data) !== null || part.data.status === 'bailed'
   const activeParallelScores = runningSteps.filter((stepId) =>
     PARALLEL_SCORE_STEPS.includes(stepId as (typeof PARALLEL_SCORE_STEPS)[number]),
   )
   let statusLabel = 'Audit workflow'
 
-  if (failedStep) {
+  if (isRejected) {
+    statusLabel = 'Listing declined'
+  } else if (failedStep) {
     statusLabel = `${getStepLabel(failedStep)} failed`
   } else if (part.data.status === 'failed') {
     statusLabel = 'Audit failed'
@@ -186,9 +190,14 @@ function getWorkflowProgressState(part: WorkflowDataPart) {
 function getWorkflowDetail(part: WorkflowDataPart) {
   const runningSteps = getRunningStepIds(part)
   const failedStep = getFailedStepIds(part)[0]
+  const rejectedOutput = getRejectedWorkflowOutput(part.data)
   const activeParallelScores = runningSteps.filter((stepId) =>
     PARALLEL_SCORE_STEPS.includes(stepId as (typeof PARALLEL_SCORE_STEPS)[number]),
   )
+
+  if (rejectedOutput || part.data.status === 'bailed') {
+    return rejectedOutput?.narrative ?? 'The selected App Store listing was declined, so the audit did not continue.'
+  }
 
   if (failedStep) {
     return `${getStepLabel(failedStep)} could not complete. The audit did not produce a final score card or recommendations.`
@@ -249,7 +258,17 @@ function getProgressFacts(part: WorkflowDataPart) {
   return facts.slice(0, 4)
 }
 
-function getAuditTone(status: WorkflowDataPart['data']['status']) {
+function getAuditTone(status: WorkflowDataPart['data']['status'], rejected = false) {
+  if (rejected) {
+    return {
+      stroke: '#fb7185',
+      chipClass: 'border-rose-400/30 bg-rose-400/12 hover:bg-rose-400/18',
+      ringIcon: X,
+      iconClass: 'text-rose-400',
+      label: 'Listing declined',
+    }
+  }
+
   switch (status) {
     case 'success':
       return {
@@ -260,12 +279,14 @@ function getAuditTone(status: WorkflowDataPart['data']['status']) {
         label: 'Audit complete',
       }
     case 'failed':
+    case 'bailed':
+    case 'canceled':
       return {
         stroke: '#fb7185',
         chipClass: 'border-rose-400/30 bg-rose-400/12 hover:bg-rose-400/18',
-        ringIcon: TriangleAlert,
+        ringIcon: status === 'failed' ? TriangleAlert : X,
         iconClass: 'text-rose-400',
-        label: 'Audit failed',
+        label: status === 'failed' ? 'Audit failed' : 'Audit stopped',
       }
     case 'suspended':
       return {
@@ -302,7 +323,7 @@ export function AuditProgressChip({
   const { completedSteps } = getWorkflowProgressState(part)
   const total = WORKFLOW_STEPS.length
   const progressPercent = Math.round((completedSteps / total) * 100)
-  const tone = getAuditTone(part.data.status)
+  const tone = getAuditTone(part.data.status, getRejectedWorkflowOutput(part.data) !== null)
   const RingIcon = tone.ringIcon
   const radius = 9
   const circumference = 2 * Math.PI * radius
