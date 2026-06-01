@@ -114,46 +114,55 @@ export async function generateListingTextScores(input: ReportInput, context: Gen
 }
 
 export async function generateVisualScores(input: ReportInput, context: GenerationContext) {
-  const iconImagePart = createImagePart(input.icon);
-  const screenshotImageParts = input.listingPageEvidence.screenshotImageUrls
-    .slice(0, 3)
-    .map(createImagePart)
-    .filter((part): part is NonNullable<ReturnType<typeof createImagePart>> => part !== null);
-  const response = await getReportAgent(context).generate(
-    [
+  try {
+    const iconImagePart = createImagePart(input.icon);
+    const screenshotImageParts = input.listingPageEvidence.screenshotImageUrls
+      .slice(0, 3)
+      .map(createImagePart)
+      .filter((part): part is NonNullable<ReturnType<typeof createImagePart>> => part !== null);
+    const response = await getReportAgent(context).generate(
+      [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: [
+                VISUAL_SCORE_PROMPT,
+                '',
+                `App icon URL: ${input.icon}`,
+                `Screenshot images supplied: ${screenshotImageParts.length}`,
+              ].join('\n'),
+            },
+            ...(iconImagePart ? [iconImagePart] : []),
+            ...screenshotImageParts,
+          ],
+        },
+      ],
       {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: [
-              VISUAL_SCORE_PROMPT,
-              '',
-              `App icon URL: ${input.icon}`,
-              `Screenshot images supplied: ${screenshotImageParts.length}`,
-            ].join('\n'),
-          },
-          ...(iconImagePart ? [iconImagePart] : []),
-          ...screenshotImageParts,
-        ],
+        abortSignal: context.abortSignal,
+        maxSteps: 1,
+        structuredOutput: {
+          schema: visualScoreOutputSchema,
+          instructions: 'Return the two requested visual score factors and limitations only.',
+        },
+        toolChoice: 'none',
       },
-    ],
-    {
-      abortSignal: context.abortSignal,
-      maxSteps: 1,
-      structuredOutput: {
-        schema: visualScoreOutputSchema,
-        instructions: 'Return the two requested visual score factors and limitations only.',
-      },
-      toolChoice: 'none',
-    },
-  );
+    );
 
-  if (!response.object) {
-    throw new Error('The visual score model did not return structured data.');
+    if (!response.object) {
+      throw new Error('The visual score model did not return structured data.');
+    }
+
+    return visualScoreOutputSchema.parse(response.object);
+  } catch (error) {
+    if (isAbortError(error)) {
+      throw error;
+    }
+
+    console.warn('Falling back to deterministic visual ASO scores.', error);
+    return createFallbackVisualScores(input);
   }
-
-  return visualScoreOutputSchema.parse(response.object);
 }
 
 export async function generateMarketScores(input: ReportInput, context: GenerationContext) {
@@ -320,6 +329,44 @@ function createFallbackActionPlan(input: ScoredAuditInput) {
       },
     ],
   });
+}
+
+function createFallbackVisualScores(input: ReportInput) {
+  const screenshotCount = input.listingPageEvidence.screenshotImageUrls.length;
+  const hasIcon = createImagePart(input.icon) !== null;
+  const screenshotScore = screenshotCount === 0 ? 0 : screenshotCount === 1 ? 4 : screenshotCount < 3 ? 5 : 6;
+  const iconScore = hasIcon ? 5 : 0;
+
+  return visualScoreOutputSchema.parse({
+    factors: [
+      {
+        factor: 'screenshots',
+        label: 'Screenshots',
+        score: screenshotScore,
+        weight: 15,
+        rationale:
+          screenshotCount === 0
+            ? 'No public screenshot image URLs were collected, so screenshot quality could not be evaluated from visible assets.'
+            : `${screenshotCount} public screenshot image URL${screenshotCount === 1 ? ' was' : 's were'} collected, but image analysis was unavailable. This fallback score reflects asset presence only and does not judge creative quality, captions, or visual hierarchy.`,
+      },
+      {
+        factor: 'icon',
+        label: 'App icon',
+        score: iconScore,
+        weight: 5,
+        rationale: hasIcon
+          ? 'A public app icon URL was collected, but image analysis was unavailable. This fallback score reflects icon availability only and does not judge distinctiveness or legibility.'
+          : 'No valid public app icon URL was collected, so icon quality could not be evaluated.',
+      },
+    ],
+    limitations: [
+      'Visual image scoring was unavailable, so screenshots and icon were scored from collected asset presence rather than image content.',
+    ],
+  });
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 function createImagePart(url: string) {

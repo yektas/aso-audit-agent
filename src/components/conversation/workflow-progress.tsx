@@ -84,9 +84,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function getRunningStepIds(part: WorkflowDataPart) {
-  return Object.entries(part.data.steps ?? {})
-    .filter(([, step]) => step.status === 'running')
-    .map(([stepId]) => stepId)
+  return Object.entries(part.data.steps ?? {}).flatMap(([stepId, step]) =>
+    step.status === 'running' ? [stepId] : [],
+  )
 }
 
 function getActiveStepId(part: WorkflowDataPart) {
@@ -98,6 +98,16 @@ function getActiveStepId(part: WorkflowDataPart) {
 
 function getStepIndex(stepId: string) {
   return WORKFLOW_STEPS.findIndex((step) => step.id === stepId)
+}
+
+function getFailedStepIds(part: WorkflowDataPart) {
+  return Object.entries(part.data.steps ?? {}).flatMap(([stepId, step]) =>
+    step.status === 'failed' ? [stepId] : [],
+  )
+}
+
+function getStepLabel(stepId: string) {
+  return WORKFLOW_STEPS.find((step) => step.id === stepId)?.label ?? stepId
 }
 
 function getStepState(part: WorkflowDataPart, stepId: string) {
@@ -144,19 +154,26 @@ function getStepDisplayStatus(part: WorkflowDataPart, stepId: string) {
 function getWorkflowProgressState(part: WorkflowDataPart) {
   const activeStep = getActiveStepId(part)
   const runningSteps = getRunningStepIds(part)
+  const failedStep = getFailedStepIds(part)[0]
   const activeParallelScores = runningSteps.filter((stepId) =>
     PARALLEL_SCORE_STEPS.includes(stepId as (typeof PARALLEL_SCORE_STEPS)[number]),
   )
-  const statusLabel =
-    part.data.status === 'suspended'
-      ? 'Waiting for confirmation'
-      : activeParallelScores.length > 1
-        ? 'Scoring copy, visuals and market signals in parallel'
-      : activeStep
-        ? RUNNING_STEP_LABELS[activeStep] ?? 'Running audit workflow'
-        : part.data.status === 'success'
-          ? 'Audit complete'
-          : 'Audit workflow'
+  let statusLabel = 'Audit workflow'
+
+  if (failedStep) {
+    statusLabel = `${getStepLabel(failedStep)} failed`
+  } else if (part.data.status === 'failed') {
+    statusLabel = 'Audit failed'
+  } else if (part.data.status === 'suspended') {
+    statusLabel = 'Waiting for confirmation'
+  } else if (activeParallelScores.length > 1) {
+    statusLabel = 'Scoring copy, visuals and market signals in parallel'
+  } else if (activeStep) {
+    statusLabel = RUNNING_STEP_LABELS[activeStep] ?? 'Running audit workflow'
+  } else if (part.data.status === 'success') {
+    statusLabel = 'Audit complete'
+  }
+
   const completedSteps = WORKFLOW_STEPS.filter((step) => getStepState(part, step.id).isDone).length
 
   return {
@@ -167,9 +184,18 @@ function getWorkflowProgressState(part: WorkflowDataPart) {
 
 function getWorkflowDetail(part: WorkflowDataPart) {
   const runningSteps = getRunningStepIds(part)
+  const failedStep = getFailedStepIds(part)[0]
   const activeParallelScores = runningSteps.filter((stepId) =>
     PARALLEL_SCORE_STEPS.includes(stepId as (typeof PARALLEL_SCORE_STEPS)[number]),
   )
+
+  if (failedStep) {
+    return `${getStepLabel(failedStep)} could not complete. The audit did not produce a final score card or recommendations.`
+  }
+
+  if (part.data.status === 'failed') {
+    return 'The audit workflow failed before producing a final score card or recommendations.'
+  }
 
   if (part.data.status === 'suspended') {
     return 'Confirm the listing to begin evidence collection and scoring.'
