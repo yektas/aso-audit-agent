@@ -26,12 +26,13 @@ import {
 const FACTOR_WEIGHTS = {
   title: 25,
   subtitle: 15,
-  description: 15,
+  description: 10,
   screenshots: 15,
   ratingsReviews: 15,
   icon: 5,
   conversionSignals: 5,
   competitivePosition: 5,
+  appPreviewVideo: 5,
 } as const satisfies Record<AsoFactorId, number>;
 
 export const fetchMetadataStep = createStep({

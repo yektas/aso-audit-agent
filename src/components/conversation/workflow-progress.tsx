@@ -60,7 +60,7 @@ const WORKFLOW_STEPS = [
   {
     id: LISTING_AUDIT_STEP_IDS.assembleScoreCard,
     label: 'Calculate score',
-    description: 'Combine eight weighted ASO factors',
+    description: 'Combine nine weighted ASO factors',
   },
   {
     id: LISTING_AUDIT_STEP_IDS.generateActionPlan,

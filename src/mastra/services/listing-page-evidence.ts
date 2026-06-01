@@ -16,51 +16,10 @@ export class MissingFirecrawlApiKeyError extends Error {
   }
 }
 
-const firecrawlListingJsonSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    subtitle: {
-      type: ['string', 'null'],
-      description: 'The public App Store subtitle/tagline visible near the app title, if present.',
-    },
-    promotionalText: {
-      type: ['string', 'null'],
-      description: 'The public promotional text section content, if present.',
-    },
-    inAppEvents: {
-      type: 'array',
-      items: {
-        type: 'object',
-        additionalProperties: false,
-        properties: {
-          title: { type: 'string' },
-          description: { type: ['string', 'null'] },
-        },
-        required: ['title', 'description'],
-      },
-      description: 'Public in-app event cards visible on the listing page.',
-    },
-  },
-  required: ['subtitle', 'promotionalText', 'inAppEvents'],
-} as const;
-
-const firecrawlListingJsonOutputSchema = z.object({
-  subtitle: z.string().nullable().catch(null),
-  promotionalText: z.string().nullable().catch(null),
-  inAppEvents: z
-    .array(
-      z.object({
-        title: z.string(),
-        description: z.string().nullable().catch(null),
-      }),
-    )
-    .catch([]),
-});
-
 const emptyListingPageEvidence = (crawlNotes: string[]): ListingPageEvidence => ({
   subtitle: null,
   promotionalText: null,
+  hasAppPreviewVideo: false,
   screenshotImageUrls: [],
   inAppEvents: [],
   crawlNotes,
@@ -97,20 +56,7 @@ export async function collectListingPageEvidence(
         onlyMainContent: true,
         maxAge: 172_800_000,
         parsers: [],
-        formats: [
-          'markdown',
-          'html',
-          {
-            type: 'json',
-            schema: firecrawlListingJsonSchema,
-            prompt: [
-              'Extract only public App Store listing fields that are visibly present on this page.',
-              'Use null for absent subtitle or promotional text.',
-              'Use an empty array when in-app events are not visibly present.',
-              'Do not infer private App Store Connect metadata such as keyword fields or custom product pages.',
-            ].join(' '),
-          },
-        ],
+        formats: ['markdown', 'html'],
       }),
     });
 
@@ -121,27 +67,27 @@ export async function collectListingPageEvidence(
     const payload: unknown = await response.json();
     const markdown = extractMarkdown(payload);
     const html = extractHtml(payload);
-    const jsonEvidence = extractJsonEvidence(payload);
 
-    if (!markdown && !html && !jsonEvidence) {
-      return emptyListingPageEvidence(['Firecrawl listing page crawl completed without usable markdown, HTML, or JSON evidence.']);
+    if (!markdown && !html) {
+      return emptyListingPageEvidence(['Firecrawl listing page crawl completed without usable markdown or HTML evidence.']);
     }
 
-    const markdownEvidence = markdown ? extractTypedListingEvidenceFromMarkdown(markdown, app.name) : null;
-    const typedEvidence = mergeListingEvidence(jsonEvidence, markdownEvidence);
+    const typedEvidence = markdown ? extractTypedListingEvidenceFromMarkdown(markdown, app.name) : null;
     const screenshotImageUrls = html ? extractScreenshotImageUrlsFromHtml(html) : [];
+    const hasAppPreviewVideo = detectAppPreviewVideo(markdown, html);
     const crawlNotes = [
-      jsonEvidence
-        ? 'Firecrawl public listing page JSON evidence was collected; markdown filled any missing public fields.'
-        : 'Firecrawl public listing page JSON evidence was unavailable; markdown fallback was used.',
       screenshotImageUrls.length > 0
         ? `Firecrawl HTML screenshot section yielded ${screenshotImageUrls.length} screenshot image URL${screenshotImageUrls.length === 1 ? '' : 's'}.`
         : 'Firecrawl HTML screenshot section did not yield screenshot image URLs.',
+      hasAppPreviewVideo
+        ? 'An App Store app preview video was detected on the public listing page.'
+        : 'No App Store app preview video was detected on the public listing page.',
     ];
 
     return {
       ...emptyListingPageEvidence(crawlNotes),
       ...typedEvidence,
+      hasAppPreviewVideo,
       screenshotImageUrls,
       rawMarkdown: markdown ? markdown.slice(0, RAW_MARKDOWN_LIMIT) : null,
     };
@@ -182,20 +128,12 @@ function extractHtml(payload: unknown): string | null {
   return null;
 }
 
-function extractJsonEvidence(payload: unknown): Pick<
-  ListingPageEvidence,
-  'subtitle' | 'promotionalText' | 'inAppEvents'
-> | null {
-  if (!isRecord(payload) || !isRecord(payload.data)) {
-    return null;
+function detectAppPreviewVideo(markdown: string | null, html: string | null): boolean {
+  if (markdown && /assets\/images\/video-control\//i.test(markdown)) {
+    return true;
   }
 
-  const result = firecrawlListingJsonOutputSchema.safeParse(payload.data.json);
-  if (!result.success) {
-    return null;
-  }
-
-  return result.data;
+  return html ? /<video[\s>]/i.test(html) : false;
 }
 
 function extractTypedListingEvidenceFromMarkdown(markdown: string, appName: string): Pick<
@@ -206,25 +144,6 @@ function extractTypedListingEvidenceFromMarkdown(markdown: string, appName: stri
     subtitle: extractSubtitle(markdown, appName),
     promotionalText: extractPromotionalText(markdown),
     inAppEvents: extractInAppEvents(markdown),
-  };
-}
-
-function mergeListingEvidence(
-  jsonEvidence: Pick<ListingPageEvidence, 'subtitle' | 'promotionalText' | 'inAppEvents'> | null,
-  markdownEvidence: Pick<ListingPageEvidence, 'subtitle' | 'promotionalText' | 'inAppEvents'> | null,
-): Pick<ListingPageEvidence, 'subtitle' | 'promotionalText' | 'inAppEvents'> | null {
-  if (!jsonEvidence) {
-    return markdownEvidence;
-  }
-
-  if (!markdownEvidence) {
-    return jsonEvidence;
-  }
-
-  return {
-    subtitle: jsonEvidence.subtitle ?? markdownEvidence.subtitle,
-    promotionalText: jsonEvidence.promotionalText ?? markdownEvidence.promotionalText,
-    inAppEvents: jsonEvidence.inAppEvents.length > 0 ? jsonEvidence.inAppEvents : markdownEvidence.inAppEvents,
   };
 }
 

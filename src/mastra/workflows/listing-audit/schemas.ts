@@ -11,6 +11,7 @@ export const asoFactorIds = [
   "icon",
   "conversionSignals",
   "competitivePosition",
+  "appPreviewVideo",
 ] as const;
 
 export const asoFactorIdSchema = z.enum(asoFactorIds);
@@ -63,6 +64,7 @@ export const confirmationOutputSchema = appMetadataSchema.extend({
 export const listingPageEvidenceSchema = z.object({
   subtitle: z.string().nullable(),
   promotionalText: z.string().nullable(),
+  hasAppPreviewVideo: z.boolean(),
   screenshotImageUrls: z.array(z.url()),
   inAppEvents: z.array(
     z.object({
@@ -143,7 +145,7 @@ export const reportSchema = z.object({
   overallScore: z.number().min(0).max(100),
   summary: z.string(),
   confidence: z.enum(["high", "medium", "limited"]),
-  scoreCard: z.array(scoreFactorSchema).length(8),
+  scoreCard: z.array(scoreFactorSchema).length(9),
   quickWins: z.array(recommendationSchema).min(3).max(5),
   highImpactChanges: z.array(recommendationSchema).min(3).max(5),
   strategicRecommendations: z.array(recommendationSchema).min(3).max(5),
@@ -175,10 +177,17 @@ export const listingTextScoreOutputSchema = listingTextScoreSliceSchema.extend({
   input: reportInputSchema,
 });
 
-export const visualScoreOutputSchema = z.object({
+export const visualModelScoreSchema = z.object({
   factors: z.array(scoreFactorSchema.extend({
     factor: z.enum(["screenshots", "icon"]),
   })).length(2),
+  limitations: z.array(z.string()).max(3),
+});
+
+export const visualScoreOutputSchema = z.object({
+  factors: z.array(scoreFactorSchema.extend({
+    factor: z.enum(["screenshots", "icon", "appPreviewVideo"]),
+  })).length(3),
   limitations: z.array(z.string()).max(3),
 });
 

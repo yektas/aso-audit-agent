@@ -8,6 +8,7 @@ import {
   marketScoreOutputSchema,
   reportInputSchema,
   scoredAuditInputSchema,
+  visualModelScoreSchema,
   visualScoreOutputSchema,
 } from '../workflows/listing-audit/schemas';
 
@@ -19,7 +20,7 @@ const SCORE_SCALE_PROMPT = String.raw`
 `;
 
 const TEXT_SCORE_PROMPT = String.raw`
-    Score only these four ASO factors from supplied public text metadata: title (25%), subtitle (15%), description (15%), and conversionSignals (5%).
+    Score only these four ASO factors from supplied public text metadata: title (25%), subtitle (15%), description (10%), and conversionSignals (5%).
     Return exactly four factors using those factor identifiers.
     ${SCORE_SCALE_PROMPT}
     Evaluate conversionSignals only from visible text-derived signals in this input, such as promotional text, release notes, and in-app events.
@@ -161,12 +162,30 @@ export function generateVisualScores(input: ReportInput, context: GenerationCont
       ...(iconImagePart ? [iconImagePart] : []),
       ...screenshotImageParts,
     ],
-    schema: visualScoreOutputSchema,
+    schema: visualModelScoreSchema,
     instructions: 'Return the two requested visual score factors and limitations only.',
-    parse: (object) => visualScoreOutputSchema.parse(object),
+    parse: (object) =>
+      visualScoreOutputSchema.parse({
+        ...object,
+        factors: [...object.factors, createAppPreviewVideoFactor(input)],
+      }),
     fallback: () => createFallbackVisualScores(input),
     fallbackWarning: 'Falling back to deterministic visual ASO scores.',
   });
+}
+
+function createAppPreviewVideoFactor(input: ReportInput) {
+  const hasVideo = input.listingPageEvidence.hasAppPreviewVideo;
+
+  return {
+    factor: 'appPreviewVideo' as const,
+    label: 'App preview video',
+    score: hasVideo ? 7 : 3,
+    weight: 5,
+    rationale: hasVideo
+      ? 'An App Store preview video was detected on the public listing page (player controls present in the page markup). Existence is confirmed, but its hook, length, and silent-playback clarity cannot be analyzed from public data.'
+      : 'No App Store preview video was detected on the public listing page. A preview video is a known conversion lever, so its absence is a real gap. This reflects existence only; video content cannot be analyzed.',
+  };
 }
 
 export function generateMarketScores(input: ReportInput, context: GenerationContext) {
@@ -274,7 +293,7 @@ function createFallbackListingTextScores(input: ReportInput) {
         factor: 'description',
         label: 'Description',
         score: descriptionScore,
-        weight: 15,
+        weight: 10,
         rationale: descriptionLength > 0
           ? `The public description contains ${descriptionLength.toLocaleString('en-US')} characters. This fallback score reflects depth of supplied copy only.`
           : 'No public description was available in the collected metadata.',
@@ -484,6 +503,7 @@ function createFallbackVisualScores(input: ReportInput) {
           ? 'A public app icon URL was collected, but image analysis was unavailable. This fallback score reflects icon availability only and does not judge distinctiveness or legibility.'
           : 'No valid public app icon URL was collected, so icon quality could not be evaluated.',
       },
+      createAppPreviewVideoFactor(input),
     ],
     limitations: [
       'Visual image scoring was unavailable, so screenshots and icon were scored from collected asset presence rather than image content.',
