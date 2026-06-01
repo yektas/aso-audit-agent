@@ -2,8 +2,8 @@ import type { WorkflowDataPart, WorkflowStepDataPart } from '@mastra/ai-sdk'
 
 import type { ListingConfirmationPayload } from './listing-confirmation-card'
 import { LISTING_AUDIT_STEP_IDS, listingConfirmationSuspendSchema } from '@/mastra/workflows/listing-audit/contract'
-import type { WorkflowOutput } from '@/mastra/workflows/listing-audit/schemas'
-import { workflowOutputSchema } from '@/mastra/workflows/listing-audit/schemas'
+import type { WorkflowRejectedOutput, WorkflowReportOutput } from '@/mastra/workflows/listing-audit/schemas'
+import { workflowRejectedOutputSchema, workflowReportOutputSchema } from '@/mastra/workflows/listing-audit/schemas'
 
 type WorkflowData = WorkflowDataPart['data']
 export type WorkflowPart = WorkflowDataPart | WorkflowStepDataPart
@@ -62,8 +62,13 @@ export function getPendingListingConfirmation(messages: Array<{ parts: unknown[]
   return null
 }
 
-export function getStructuredReportOutput(data: WorkflowData): WorkflowOutput | null {
-  const result = workflowOutputSchema.safeParse(data.steps?.[LISTING_AUDIT_STEP_IDS.fullAsoAudit]?.output)
+export function getStructuredReportOutput(data: WorkflowData): WorkflowReportOutput | null {
+  const result = workflowReportOutputSchema.safeParse(data.steps?.[LISTING_AUDIT_STEP_IDS.fullAsoAudit]?.output)
+  return result.success ? result.data : null
+}
+
+export function getRejectedWorkflowOutput(data: WorkflowData): WorkflowRejectedOutput | null {
+  const result = workflowRejectedOutputSchema.safeParse(data.steps?.[LISTING_AUDIT_STEP_IDS.userConfirmation]?.output)
   return result.success ? result.data : null
 }
 

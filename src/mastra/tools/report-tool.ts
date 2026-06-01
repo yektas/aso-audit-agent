@@ -204,47 +204,122 @@ export async function generateMarketScores(input: ReportInput, context: Generati
 }
 
 export async function generateActionPlan(input: ScoredAuditInput, context: GenerationContext) {
-  const response = await getReportAgent(context).generate(
-    [
-      {
-        role: 'user',
-        content: [
-          ACTION_PLAN_PROMPT,
-          '',
-          JSON.stringify(
-            {
-              app: input.input.name,
-              scoreCard: input.scoreCard,
-              listingText: {
-                description: input.input.description,
-                subtitle: input.input.listingPageEvidence.subtitle,
-                promotionalText: input.input.listingPageEvidence.promotionalText,
+  try {
+    const response = await getReportAgent(context).generate(
+      [
+        {
+          role: 'user',
+          content: [
+            ACTION_PLAN_PROMPT,
+            '',
+            JSON.stringify(
+              {
+                app: input.input.name,
+                scoreCard: input.scoreCard,
+                listingText: {
+                  description: input.input.description,
+                  subtitle: input.input.listingPageEvidence.subtitle,
+                  promotionalText: input.input.listingPageEvidence.promotionalText,
+                },
+                competitorComparison: input.competitorComparison,
+                reviews: input.input.recentReviews,
               },
-              competitorComparison: input.competitorComparison,
-              reviews: input.input.recentReviews,
-            },
-            null,
-            2,
-          ),
-        ].join('\n'),
+              null,
+              2,
+            ),
+          ].join('\n'),
+        },
+      ],
+      {
+        abortSignal: context.abortSignal,
+        maxSteps: 1,
+        structuredOutput: {
+          schema: actionPlanSchema,
+          instructions: 'Return the concise summary and exactly nine recommendations matching the schema.',
+        },
+        toolChoice: 'none',
+      },
+    );
+
+    if (!response.object) {
+      throw new Error('The ASO action-plan model did not return structured data.');
+    }
+
+    return actionPlanSchema.parse(response.object);
+  } catch (error) {
+    console.warn('Falling back to deterministic ASO action plan.', error);
+    return createFallbackActionPlan(input);
+  }
+}
+
+function createFallbackActionPlan(input: ScoredAuditInput) {
+  const sortedFactors = [...input.scoreCard.scoreCard].sort((a, b) => a.score - b.score);
+  const weakest = sortedFactors.slice(0, 3);
+  const strongest = [...sortedFactors].sort((a, b) => b.score - a.score).slice(0, 3);
+  const subtitle = input.input.listingPageEvidence.subtitle ?? 'No public subtitle was collected';
+  const promotionalText = input.input.listingPageEvidence.promotionalText ?? 'No public promotional text was collected';
+  const screenshotCount = input.input.listingPageEvidence.screenshotImageUrls.length;
+  const ratingEvidence =
+    input.input.averageUserRating !== null && input.input.userRatingCount !== null
+      ? `${input.input.averageUserRating.toFixed(2)} average rating from ${input.input.userRatingCount.toLocaleString('en-US')} ratings`
+      : 'Rating evidence was unavailable';
+
+  return actionPlanSchema.parse({
+    summary: `Score ${input.scoreCard.overallScore.toFixed(1)} (confidence: ${input.scoreCard.confidence}). Prioritize the lowest-scoring ASO factors while preserving proven strengths.`,
+    quickWins: weakest.map((factor) => ({
+      title: `Improve ${factor.label.toLowerCase()}`,
+      evidence: [factor.rationale.slice(0, 220)],
+      action: `Review the ${factor.label.toLowerCase()} evidence and make one focused update that directly addresses the weakness in the score rationale.`,
+      expectedImpact: `A targeted ${factor.label.toLowerCase()} improvement should strengthen the overall listing without changing unrelated store assets.`,
+      beforeAfterExamples: [],
+    })),
+    highImpactChanges: [
+      {
+        title: 'Clarify the subtitle value proposition',
+        evidence: [`Current subtitle: ${subtitle}`, weakest[0]?.rationale ?? 'Subtitle was part of the scored ASO factor set.'],
+        action: 'Use the subtitle to state the clearest user benefit and include a high-intent category term already supported by the listing.',
+        expectedImpact: 'A clearer subtitle can improve search relevance and conversion from listing impressions.',
+        beforeAfterExamples: [],
+      },
+      {
+        title: 'Use promotional text for current conversion hooks',
+        evidence: [promotionalText, input.input.releaseNotes ? `Release notes: ${input.input.releaseNotes.slice(0, 180)}` : 'Release notes were unavailable.'],
+        action: 'Add or refresh promotional text with a concise current benefit, offer, or feature callout.',
+        expectedImpact: 'Promotional text gives the listing an above-the-fold conversion message without requiring a new app release.',
+        beforeAfterExamples: [],
+      },
+      {
+        title: 'Tighten screenshot messaging',
+        evidence: [`Collected screenshot images: ${screenshotCount}`, strongest.find((factor) => factor.factor === 'screenshots')?.rationale ?? 'Screenshots were part of the visual scoring pass.'],
+        action: 'Make the first screenshots communicate the primary user promise in short, readable captions.',
+        expectedImpact: 'Sharper screenshot captions can increase comprehension and tap-to-install intent.',
+        beforeAfterExamples: [],
       },
     ],
-    {
-      abortSignal: context.abortSignal,
-      maxSteps: 1,
-      structuredOutput: {
-        schema: actionPlanSchema,
-        instructions: 'Return the concise summary and exactly nine recommendations matching the schema.',
+    strategicRecommendations: [
+      {
+        title: 'Protect strongest ranking signals',
+        evidence: strongest.map((factor) => `${factor.label}: ${factor.score}/10`).slice(0, 3),
+        action: 'Keep the highest-scoring factors stable while testing changes to weaker fields.',
+        expectedImpact: 'This reduces regression risk while still improving the listing.',
+        beforeAfterExamples: [],
       },
-      toolChoice: 'none',
-    },
-  );
-
-  if (!response.object) {
-    throw new Error('The ASO action-plan model did not return structured data.');
-  }
-
-  return actionPlanSchema.parse(response.object);
+      {
+        title: 'Turn ratings into social proof',
+        evidence: [ratingEvidence],
+        action: 'Where App Store policy and creative guidelines allow, reinforce strong public rating/review proof in visual or text messaging.',
+        expectedImpact: 'Visible social proof can improve trust for undecided users.',
+        beforeAfterExamples: [],
+      },
+      {
+        title: 'Test changes as controlled iterations',
+        evidence: input.scoreCard.limitations.slice(0, 3),
+        action: 'Run one listing change at a time and compare performance before expanding successful updates.',
+        expectedImpact: 'Controlled iteration makes it easier to connect ASO changes to conversion or discovery movement.',
+        beforeAfterExamples: [],
+      },
+    ],
+  });
 }
 
 function createImagePart(url: string) {

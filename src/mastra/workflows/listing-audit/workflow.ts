@@ -17,7 +17,8 @@ import { workflowInputSchema, workflowOutputSchema } from './schemas';
 
 export const listingAuditWorkflow = createWorkflow({
   id: LISTING_AUDIT_WORKFLOW_ID,
-  description: 'Identifies an App Store listing, requests user confirmation, and runs an ASO audit.',
+  description:
+    'Use when a user provides an App Store URL or numeric App Store ID for an ASO audit. Identifies the listing, requests user confirmation with the structured confirmation UI, and runs the audit after confirmation.',
   inputSchema: workflowInputSchema,
   outputSchema: workflowOutputSchema,
 })

@@ -1,8 +1,8 @@
 import { ChevronRight, Route, TriangleAlert } from 'lucide-react'
 
-import type { WorkflowOutput } from '@/mastra/workflows/listing-audit/schemas'
+import type { WorkflowReportOutput } from '@/mastra/workflows/listing-audit/schemas'
 
-type Report = WorkflowOutput['report']
+type Report = WorkflowReportOutput['report']
 type ScoreFactor = Report['scoreCard'][number]
 type Recommendation = Report['quickWins'][number]
 type CompetitorComparison = Report['competitorComparison'][number]

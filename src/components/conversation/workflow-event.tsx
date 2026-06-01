@@ -3,6 +3,7 @@
 import { ListingConfirmationCard } from './listing-confirmation-card'
 import { ReportView } from './report-view'
 import {
+  getRejectedWorkflowOutput,
   getStructuredReportOutput,
   getWorkflowRunId,
   isListingConfirmationPayload,
@@ -30,6 +31,7 @@ export function WorkflowEvent({
 
   const confirmationPayload = part.data.steps?.[LISTING_AUDIT_STEP_IDS.userConfirmation]?.suspendPayload
   const output = getStructuredReportOutput(part.data)
+  const rejectedOutput = getRejectedWorkflowOutput(part.data)
   const runId = getWorkflowRunId(part)
 
   if (part.data.status === 'running') {
@@ -63,6 +65,14 @@ export function WorkflowEvent({
 
   if (part.data.status === 'success' && output) {
     return <ReportView report={output.report} />
+  }
+
+  if (part.data.status === 'success' && rejectedOutput) {
+    return (
+      <div className="mt-2 w-full max-w-xl rounded-lg border border-border bg-muted/35 px-4 py-3 text-sm text-foreground/70">
+        {rejectedOutput.narrative}
+      </div>
+    )
   }
 
   return null

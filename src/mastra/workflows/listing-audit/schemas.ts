@@ -203,7 +203,7 @@ export const actionPlanOutputSchema = z.object({
   actionPlan: actionPlanSchema,
 });
 
-export const workflowOutputSchema = z.object({
+export const workflowReportOutputSchema = z.object({
   narrative: z.string(),
   report: reportSchema,
   evidence: z.object({
@@ -214,4 +214,22 @@ export const workflowOutputSchema = z.object({
   }),
 });
 
+export const workflowRejectedOutputSchema = z.object({
+  rejected: z.literal(true),
+  narrative: z.string(),
+  app: appMetadataSchema.pick({
+    appStoreId: true,
+    name: true,
+    developer: true,
+    appStoreUrl: true,
+    icon: true,
+    category: true,
+    country: true,
+  }),
+});
+
+export const workflowOutputSchema = z.union([workflowReportOutputSchema, workflowRejectedOutputSchema]);
+
+export type WorkflowReportOutput = z.infer<typeof workflowReportOutputSchema>;
+export type WorkflowRejectedOutput = z.infer<typeof workflowRejectedOutputSchema>;
 export type WorkflowOutput = z.infer<typeof workflowOutputSchema>;

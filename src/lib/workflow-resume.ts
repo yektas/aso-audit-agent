@@ -8,7 +8,7 @@ import { getConversationMemory, getOwnedConversationThread } from '@/lib/convers
 import { appendVisitorCookie, getVisitorSession } from '@/lib/visitor-session'
 import { mastra } from '@/mastra'
 import { LISTING_AUDIT_STEP_IDS, LISTING_AUDIT_WORKFLOW_KEY } from '@/mastra/workflows/listing-audit/contract'
-import { workflowOutputSchema } from '@/mastra/workflows/listing-audit/schemas'
+import { workflowRejectedOutputSchema, workflowReportOutputSchema } from '@/mastra/workflows/listing-audit/schemas'
 
 export type WorkflowResumeParams = {
   runId?: unknown
@@ -63,15 +63,18 @@ async function isStoredRunSuspended(runId: string) {
 }
 
 function getWorkflowContextText(part: WorkflowDataPart) {
-  const output = part.data.steps?.[LISTING_AUDIT_STEP_IDS.fullAsoAudit]?.output
-  const parsedOutput = workflowOutputSchema.safeParse(output)
+  const reportOutput = part.data.steps?.[LISTING_AUDIT_STEP_IDS.fullAsoAudit]?.output
+  const parsedReportOutput = workflowReportOutputSchema.safeParse(reportOutput)
 
-  if (part.data.status === 'success' && parsedOutput.success) {
-    return `The ASO audit completed successfully. Structured audit report:\n${JSON.stringify(parsedOutput.data.report)}`
+  if (part.data.status === 'success' && parsedReportOutput.success) {
+    return `The ASO audit completed successfully. Structured audit report:\n${JSON.stringify(parsedReportOutput.data.report)}`
   }
 
-  if (part.data.status === 'bailed') {
-    return 'The user rejected the identified App Store listing. Ask for a different App Store URL or app ID before auditing.'
+  const confirmationOutput = part.data.steps?.[LISTING_AUDIT_STEP_IDS.userConfirmation]?.output
+  const parsedRejectedOutput = workflowRejectedOutputSchema.safeParse(confirmationOutput)
+
+  if (parsedRejectedOutput.success) {
+    return parsedRejectedOutput.data.narrative
   }
 
   return null

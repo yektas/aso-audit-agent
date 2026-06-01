@@ -18,7 +18,7 @@ import {
   reportSchema,
   scoredAuditInputSchema,
   visualScoreOutputSchema,
-  workflowOutputSchema,
+  workflowReportOutputSchema,
 } from "./schemas";
 
 const FACTOR_WEIGHTS = {
@@ -52,8 +52,17 @@ export const confirmationStep = createStep({
   execute: async ({ inputData, resumeData, suspend, bail }) => {
     if (resumeData?.confirmed === false) {
       return bail({
-        confirmed: false,
-        ...inputData,
+        rejected: true,
+        narrative: `The user rejected ${inputData.name} as the intended App Store listing.`,
+        app: {
+          appStoreId: inputData.appStoreId,
+          name: inputData.name,
+          developer: inputData.developer,
+          appStoreUrl: inputData.appStoreUrl,
+          icon: inputData.icon,
+          category: inputData.category,
+          country: inputData.country,
+        },
       });
     }
 
@@ -151,7 +160,7 @@ export const generateActionPlanStep = createStep({
 export const scoreReportStep = createStep({
   id: LISTING_AUDIT_STEP_IDS.fullAsoAudit,
   inputSchema: actionPlanOutputSchema,
-  outputSchema: workflowOutputSchema,
+  outputSchema: workflowReportOutputSchema,
   execute: async ({ inputData }) => {
     const { scoredAudit, actionPlan } = inputData;
     const { input, scoreCard } = scoredAudit;
@@ -162,7 +171,7 @@ export const scoreReportStep = createStep({
       competitorComparison: scoredAudit.competitorComparison,
     });
 
-    return workflowOutputSchema.parse({
+    return workflowReportOutputSchema.parse({
       narrative: report.summary,
       report,
       evidence: {

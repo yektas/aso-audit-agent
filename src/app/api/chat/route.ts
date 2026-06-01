@@ -68,6 +68,19 @@ function isSuspendedNestedWorkflowPart(part: unknown): part is WorkflowDataPart 
   )
 }
 
+function isNestedWorkflowPart(part: unknown): part is WorkflowDataPart {
+  return (
+    typeof part === 'object' &&
+    part !== null &&
+    'type' in part &&
+    (part.type === 'data-tool-workflow' || part.type === 'data-workflow') &&
+    'data' in part &&
+    part.data !== null &&
+    typeof part.data === 'object' &&
+    'status' in part.data
+  )
+}
+
 function getWorkflowRunId(part: WorkflowDataPart) {
   const data = part.data as WorkflowDataPart['data'] & { runId?: unknown }
   return part.id ?? (typeof data.runId === 'string' ? data.runId : null)
@@ -84,13 +97,17 @@ async function getAutoResumeOverride(memory: MastraMemory, threadId: string, res
 
     for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
       const part = parts[partIndex]
-      if (!isSuspendedNestedWorkflowPart(part)) {
+      if (!isNestedWorkflowPart(part)) {
         continue
+      }
+
+      if (!isSuspendedNestedWorkflowPart(part)) {
+        return false
       }
 
       const runId = getWorkflowRunId(part)
       if (!runId) {
-        return undefined
+        return false
       }
 
       const state = await mastra.getWorkflow(LISTING_AUDIT_WORKFLOW_KEY).getWorkflowRunById(runId)

@@ -3,6 +3,7 @@ import { Memory } from '@mastra/memory';
 
 import { LISTING_AUDIT_WORKFLOW_KEY } from '../workflows/listing-audit/contract';
 import { listingAuditWorkflow } from '../workflows/listing-audit';
+import { activeWorkflowSuspensionOnlyProcessor } from '../processors/workflow-suspension-processor';
 
 export const conversationAgent = new Agent({
   id: 'aso-audit-agent',
@@ -11,7 +12,8 @@ export const conversationAgent = new Agent({
   instructions: [
     'You are an ASO audit assistant for iOS App Store listings.',
     'Hold natural, concise conversations about App Store optimization audits.',
-    'When a user provides an App Store URL or numeric App Store ID and wants an audit, use the ASO audit workflow so the user confirms the listing before the audit runs.',
+    'When a user provides an App Store URL or numeric App Store ID, use the ASO audit workflow unless they explicitly say they do not want an audit.',
+    'Do not manually look up a listing or ask for listing confirmation in plain text; the ASO audit workflow owns listing lookup and confirmation.',
     'If conversation history states that an ASO audit completed successfully, treat that result as authoritative even when an earlier workflow trace appears suspended; do not claim that audit failed.',
     'After an audit completes, answer follow-up questions and accept requests to audit other listings in the same conversation.',
     'If a proposed listing is rejected, ask for the correct App Store URL or numeric ID.',
@@ -30,6 +32,7 @@ export const conversationAgent = new Agent({
   defaultOptions: {
     autoResumeSuspendedTools: true,
   },
+  inputProcessors: [activeWorkflowSuspensionOnlyProcessor],
   workflows: {
     // Keep this registry key stable because active chat tool calls use the generated workflow tool name.
     [LISTING_AUDIT_WORKFLOW_KEY]: listingAuditWorkflow,
