@@ -8,10 +8,7 @@ import { appendVisitorCookie, getVisitorSession } from '@/lib/visitor-session'
 import { CONVERSATION_AGENT_ID, getConversationMemory, getOwnedConversationThread } from '@/lib/conversation-memory'
 import { handleWorkflowResume } from '@/lib/workflow-resume'
 import { mastra } from '@/mastra'
-import {
-  LISTING_AUDIT_WORKFLOW_KEY,
-  LISTING_AUDIT_WORKFLOW_TOOL_NAME,
-} from '@/mastra/workflows/listing-audit/contract'
+import { LISTING_AUDIT_WORKFLOW_KEY } from '@/mastra/workflows/listing-audit/contract'
 
 type ChatParams = {
   memory?: Record<string, unknown>
@@ -23,9 +20,6 @@ type ChatParams = {
   }
 } & Record<string, unknown>
 
-const APP_STORE_URL_PATTERN = /https?:\/\/apps\.apple\.com\/\S*\/id\d+/i
-const APP_STORE_ID_PATTERN = /^\s*\d{5,}\s*$/
-const AUDIT_INTENT_PATTERN = /\b(audit|analy[sz]e|review|score|assess|optimi[sz]e|aso|recommend|improve)\b/i
 const THREAD_TITLE_INSTRUCTIONS = 'Generate a concise title of at most five words for this App Store audit conversation.'
 
 function getThreadId(value: unknown) {
@@ -35,28 +29,6 @@ function getThreadId(value: unknown) {
 
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
-}
-
-function isTextPart(part: unknown): part is { type: 'text'; text: string } {
-  return (
-    typeof part === 'object' &&
-    part !== null &&
-    'type' in part &&
-    part.type === 'text' &&
-    'text' in part &&
-    typeof part.text === 'string'
-  )
-}
-
-function hasAppListingAuditInput(messages: unknown[] | undefined) {
-  const lastMessage = messages?.at(-1)
-  if (typeof lastMessage !== 'object' || lastMessage === null || !('parts' in lastMessage) || !Array.isArray(lastMessage.parts)) {
-    return false
-  }
-
-  const text = lastMessage.parts.filter(isTextPart).map((part) => part.text).join('\n')
-  const hasListingReference = APP_STORE_URL_PATTERN.test(text) || APP_STORE_ID_PATTERN.test(text)
-  return hasListingReference && AUDIT_INTENT_PATTERN.test(text)
 }
 
 function getUiMessagesForTitleGeneration(messages: unknown[] | undefined) {
@@ -231,7 +203,6 @@ export async function POST(req: Request) {
   }
 
   const autoResumeSuspendedTools = await getAutoResumeOverride(memory, thread.id, session.resourceId)
-  const shouldStartListingAudit = hasAppListingAuditInput(params.messages)
   const mastraParams = { ...params }
   delete mastraParams.threadId
   delete mastraParams.memory
@@ -242,14 +213,7 @@ export async function POST(req: Request) {
     sendReasoning: true,
     params: {
       ...mastraParams,
-      ...(shouldStartListingAudit
-        ? {
-            autoResumeSuspendedTools: false,
-            toolChoice: { type: 'tool' as const, toolName: LISTING_AUDIT_WORKFLOW_TOOL_NAME },
-          }
-        : autoResumeSuspendedTools === false
-          ? { autoResumeSuspendedTools }
-          : {}),
+      ...(autoResumeSuspendedTools === false ? { autoResumeSuspendedTools } : {}),
       memory: {
         thread: {
           id: resolvedThread.id,

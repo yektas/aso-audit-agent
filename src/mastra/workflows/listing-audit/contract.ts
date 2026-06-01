@@ -2,7 +2,6 @@ import { z } from 'zod'
 
 export const LISTING_AUDIT_WORKFLOW_ID = 'aso-audit-workflow'
 export const LISTING_AUDIT_WORKFLOW_KEY = 'asoAuditWorkflow'
-export const LISTING_AUDIT_WORKFLOW_TOOL_NAME = `workflow-${LISTING_AUDIT_WORKFLOW_KEY}`
 
 export const LISTING_AUDIT_STEP_IDS = {
   fetchMetadata: 'fetch-metadata',
