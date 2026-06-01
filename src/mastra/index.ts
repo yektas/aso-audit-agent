@@ -9,9 +9,7 @@ import { reportAgent } from './agents/report-agent';
 import { LISTING_AUDIT_WORKFLOW_KEY } from './workflows/listing-audit/contract';
 import { listingAuditWorkflow } from './workflows/listing-audit';
 
-const mastraStorageUrl =
-  process.env.MASTRA_STORAGE_URL ??
-  `file:${resolve(process.env.MASTRA_PROJECT_ROOT ?? process.cwd(), 'mastra.db')}`;
+const mastraStorageUrl =`file:${resolve(process.cwd(), 'mastra.db')}`;
 
 export const mastra = new Mastra({
   agents: { conversationAgent, reportAgent },
@@ -24,9 +22,7 @@ export const mastra = new Mastra({
       default: {
         serviceName: 'mastra',
         exporters: [
-          new MastraStorageExporter({
-            strategy: 'realtime', // Immediate visibility for debugging
-          }), // Persists traces to storage for Studio
+          new MastraStorageExporter(), // Persists traces to storage for Studio
         ],
       },
     },
