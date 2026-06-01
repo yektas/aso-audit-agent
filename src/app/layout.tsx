@@ -27,7 +27,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("h-full", "antialiased", spaceGrotesk.variable, jetBrainsMono.variable, "font-sans")}
+      className={cn("dark h-full", "antialiased", spaceGrotesk.variable, jetBrainsMono.variable, "font-sans")}
     >
       <body className="min-h-full flex flex-col font-sans">
         {children}
