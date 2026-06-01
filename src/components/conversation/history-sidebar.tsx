@@ -16,6 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 import type { ConversationThread } from "./message-types";
@@ -99,61 +100,63 @@ export function HistorySidebar({
             New conversation
           </Button>
         </div>
-        <nav className="min-h-0 flex-1 overflow-y-auto px-3 pb-4" aria-label="Conversation history">
-          {threads.map((thread) => (
-            <div
-              key={thread.id}
-              className={cn(
-                "mb-1 flex items-start gap-2 rounded-2xl border px-3 py-3 transition-colors",
-                thread.id === selectedThreadId
-                  ? "border-primary/30 bg-primary/12 text-foreground"
-                  : "border-transparent text-foreground/60 hover:border-border hover:bg-muted hover:text-foreground/84",
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  onSelect(thread.id);
-                  onOpenChange(false);
-                }}
-                className="flex min-w-0 flex-1 items-start gap-3 text-left"
+        <ScrollArea className="min-h-0 flex-1">
+          <nav className="px-3 pb-4" aria-label="Conversation history">
+            {threads.map((thread) => (
+              <div
+                key={thread.id}
+                className={cn(
+                  "mb-1 flex items-start gap-2 rounded-2xl border px-3 py-3 transition-colors",
+                  thread.id === selectedThreadId
+                    ? "border-primary/30 bg-primary/12 text-foreground"
+                    : "border-transparent text-foreground/60 hover:border-border hover:bg-muted hover:text-foreground/84",
+                )}
               >
-                <MessageSquareIcon className="mt-0.5 size-4 shrink-0" />
-                <span className="min-w-0 flex-1">
-                  <span
-                    className="block truncate text-sm"
-                    title={thread.title || "New audit conversation"}
-                  >
-                    {thread.title || "New audit conversation"}
-                  </span>
-                  <span className="mt-1 block font-mono text-[10px] tracking-[0.14em] text-foreground/36 uppercase">
-                    {formatThreadDate(thread.updatedAt)}
-                  </span>
-                </span>
-              </button>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  aria-label={`Open actions for ${thread.title || "conversation"}`}
-                  className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-muted hover:text-foreground"
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelect(thread.id);
+                    onOpenChange(false);
+                  }}
+                  className="flex min-w-0 flex-1 items-start gap-3 text-left"
                 >
-                  <MoreHorizontalIcon className="size-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="end"
-                  className="w-40 border-border bg-popover text-popover-foreground"
-                >
-                  <DropdownMenuItem
-                    onClick={() => onDelete(thread.id)}
-                    className="cursor-pointer text-red-200 focus:bg-red-500/10 focus:text-red-100"
+                  <MessageSquareIcon className="mt-0.5 size-4 shrink-0" />
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className="block truncate text-sm"
+                      title={thread.title || "New audit conversation"}
+                    >
+                      {thread.title || "New audit conversation"}
+                    </span>
+                    <span className="mt-1 block font-mono text-[10px] tracking-[0.14em] text-foreground/36 uppercase">
+                      {formatThreadDate(thread.updatedAt)}
+                    </span>
+                  </span>
+                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    aria-label={`Open actions for ${thread.title || "conversation"}`}
+                    className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-muted hover:text-foreground"
                   >
-                    <Trash2Icon className="mr-2 size-4" />
-                    Delete conversation
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          ))}
-        </nav>
+                    <MoreHorizontalIcon className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-40 border-border bg-popover text-popover-foreground"
+                  >
+                    <DropdownMenuItem
+                      onClick={() => onDelete(thread.id)}
+                      className="cursor-pointer text-red-200 focus:bg-red-500/10 focus:text-red-100"
+                    >
+                      <Trash2Icon className="mr-2 size-4" />
+                      Delete conversation
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ))}
+          </nav>
+        </ScrollArea>
       </aside>
     </>
   );

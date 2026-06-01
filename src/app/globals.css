@@ -205,6 +205,24 @@
   will-change: opacity, transform;
 }
 
+.custom-scrollbar {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+/* WebKit browsers (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 12px;
+  height: 8px;
+  background: transparent !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  border-radius: 40px;
+  background: hsl(var(--border));
+}
+
 @keyframes working-pulse {
   0%,
   100% {

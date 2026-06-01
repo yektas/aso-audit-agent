@@ -1,38 +1,86 @@
 "use client";
 
+import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { Button } from "@/components/ui/button";
+import { ScrollBar } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import type { UIMessage } from "ai";
 import { ArrowDownIcon, DownloadIcon } from "lucide-react";
-import type { ComponentProps } from "react";
-import { useCallback } from "react";
-import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
+import type { ComponentProps, Ref } from "react";
+import { createContext, useCallback, useContext } from "react";
+import {
+  type StickToBottomInstance,
+  useStickToBottom,
+} from "use-stick-to-bottom";
 
-export type ConversationProps = ComponentProps<typeof StickToBottom>;
+const ConversationContext = createContext<StickToBottomInstance | null>(null);
 
-export const Conversation = ({ className, ...props }: ConversationProps) => (
-  <StickToBottom
-    className={cn("relative flex-1 overflow-y-hidden", className)}
-    initial="smooth"
-    resize="smooth"
-    role="log"
-    {...props}
-  />
-);
+const useConversation = () => {
+  const context = useContext(ConversationContext);
+  if (!context) {
+    throw new Error("Conversation parts must be used within <Conversation>");
+  }
+  return context;
+};
 
-export type ConversationContentProps = ComponentProps<
-  typeof StickToBottom.Content
->;
+export type ConversationProps = ComponentProps<"div">;
+
+export const Conversation = ({
+  className,
+  children,
+  ...props
+}: ConversationProps) => {
+  const instance = useStickToBottom({ initial: "smooth", resize: "smooth" });
+
+  return (
+    <ConversationContext.Provider value={instance}>
+      <div
+        className={cn("relative flex-1 overflow-hidden", className)}
+        role="log"
+        {...props}
+      >
+        {children}
+      </div>
+    </ConversationContext.Provider>
+  );
+};
+
+export type ConversationContentProps = ComponentProps<"div">;
 
 export const ConversationContent = ({
   className,
+  children,
   ...props
-}: ConversationContentProps) => (
-  <StickToBottom.Content
-    className={cn("flex flex-col gap-8 p-4", className)}
-    {...props}
-  />
-);
+}: ConversationContentProps) => {
+  const { scrollRef, contentRef } = useConversation();
+
+  return (
+    // ScrollArea.Root is the positioning parent for the styled scrollbar thumb.
+    // Keeping it scoped to the chat column (not the outer flex container) ensures
+    // the scrollbar stays right-aligned to the chat, not the full viewport width
+    // when the progress panel is open alongside it.
+    <ScrollAreaPrimitive.Root
+      className="relative min-h-0 min-w-0 flex-1 overflow-hidden"
+      data-slot="scroll-area"
+    >
+      <ScrollAreaPrimitive.Viewport
+        ref={scrollRef as Ref<HTMLDivElement>}
+        className="size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        data-slot="scroll-area-viewport"
+      >
+        <div
+          className={cn("flex flex-col gap-8 p-4", className)}
+          ref={contentRef as Ref<HTMLDivElement>}
+          {...props}
+        >
+          {children}
+        </div>
+      </ScrollAreaPrimitive.Viewport>
+      <ScrollBar />
+      <ScrollAreaPrimitive.Corner />
+    </ScrollAreaPrimitive.Root>
+  );
+};
 
 export type ConversationEmptyStateProps = ComponentProps<"div"> & {
   title?: string;
@@ -75,7 +123,7 @@ export const ConversationScrollButton = ({
   className,
   ...props
 }: ConversationScrollButtonProps) => {
-  const { isAtBottom, scrollToBottom } = useStickToBottomContext();
+  const { isAtBottom, scrollToBottom } = useConversation();
 
   const handleScrollToBottom = useCallback(() => {
     scrollToBottom();
