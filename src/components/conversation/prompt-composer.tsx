@@ -23,6 +23,7 @@ export function PromptComposer({
   onStop: () => void
 }) {
   const isWorking = status === 'submitted' || status === 'streaming'
+  const submitStatus = disabled ? 'ready' : status
 
   return (
     <div className="prompt-composer mx-auto w-full max-w-3xl px-4 pb-4 sm:px-7 sm:pb-6">
@@ -49,9 +50,9 @@ export function PromptComposer({
             )}
           </PromptInputTools>
           <PromptInputSubmit
-            status={status}
-            onStop={onStop}
-            disabled={disabled && status === 'ready'}
+            status={submitStatus}
+            onStop={disabled ? undefined : onStop}
+            disabled={disabled}
             className="size-10 rounded-xl bg-primary text-primary-foreground hover:bg-primary/80"
           />
         </PromptInputFooter>
