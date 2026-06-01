@@ -6,12 +6,17 @@ import { NextResponse } from 'next/server'
 
 import { appendAuditVisitorCookie, getAuditVisitorSession } from '@/lib/audit-session'
 import { AUDIT_AGENT_ID, getAuditMemory, getOwnedAuditThread } from '@/lib/audit-conversations'
+import { handleAsoAuditWorkflowResume } from '@/lib/aso-audit-workflow-resume'
 import { mastra } from '@/mastra'
 
 type ChatParams = {
   memory?: Record<string, unknown>
   messages?: unknown[]
   threadId?: string
+  workflowResume?: {
+    confirmed?: unknown
+    runId?: unknown
+  }
 } & Record<string, unknown>
 
 const APP_STORE_URL_PATTERN = /https?:\/\/apps\.apple\.com\/\S*\/id\d+/i
@@ -144,9 +149,20 @@ async function persistSuspendedWorkflowPart(
 }
 
 export async function POST(req: Request) {
-  const session = getAuditVisitorSession(req)
   const params = (await req.json()) as ChatParams
   const threadId = getThreadId(params.threadId)
+
+  if (params.workflowResume) {
+    return handleAsoAuditWorkflowResume(req, {
+      threadId,
+      runId: params.workflowResume.runId,
+      resumeData: {
+        confirmed: params.workflowResume.confirmed,
+      },
+    })
+  }
+
+  const session = getAuditVisitorSession(req)
 
   if (!threadId) {
     return appendAuditVisitorCookie(NextResponse.json({ error: 'A conversation thread is required.' }, { status: 400 }), session)

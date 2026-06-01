@@ -37,13 +37,13 @@ export function useAuditConversation() {
 
           if (resume) {
             return {
-              api: '/api/workflow/aso-audit',
+              api,
               credentials,
               headers,
               body: {
                 threadId: activeThreadRef.current,
-                runId: resume.runId,
-                resumeData: {
+                workflowResume: {
+                  runId: resume.runId,
                   confirmed: resume.confirmed,
                 },
               },
