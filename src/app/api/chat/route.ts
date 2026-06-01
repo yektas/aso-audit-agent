@@ -7,6 +7,7 @@ import { z } from 'zod'
 
 import { appendVisitorCookie, getVisitorSession } from '@/lib/visitor-session'
 import { CONVERSATION_AGENT_ID, getConversationMemory, getOwnedConversationThread } from '@/lib/conversation-memory'
+import { THREAD_TITLE_INSTRUCTIONS } from '@/mastra/agents/conversation-agent'
 import { getWorkflowRunId, isWorkflowPart, isWorkflowSnapshotPart, withPersistedWorkflowRunId } from '@/lib/workflow-parts'
 import { handleWorkflowResume } from '@/lib/workflow-resume'
 import { mastra } from '@/mastra'
@@ -22,8 +23,6 @@ const chatParamsSchema = z.object({
     runId: z.string().trim().min(1),
   }).optional(),
 }).strict()
-
-const THREAD_TITLE_INSTRUCTIONS = 'Generate a concise title of at most five words for this App Store audit conversation.'
 
 function getThreadId(value: unknown) {
   if (typeof value !== 'string') {

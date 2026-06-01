@@ -6,6 +6,9 @@ import { listingAuditWorkflow } from '../workflows/listing-audit';
 import { activeWorkflowSuspensionOnlyProcessor } from '../processors/workflow-suspension-processor';
 import { asoAuditModel } from '../model';
 
+export const THREAD_TITLE_INSTRUCTIONS =
+  'Generate a concise title of at most five words for this App Store audit conversation.';
+
 export const conversationAgent = new Agent({
   id: 'aso-audit-agent',
   name: 'ASO Audit Agent',
@@ -26,7 +29,7 @@ export const conversationAgent = new Agent({
       lastMessages: 30,
       generateTitle: {
         model: asoAuditModel,
-        instructions: 'Generate a concise title of at most five words for this App Store audit conversation.',
+        instructions: THREAD_TITLE_INSTRUCTIONS,
       },
     },
   }),

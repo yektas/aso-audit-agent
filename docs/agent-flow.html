@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ASO Audit Agent — System Map</title>
+<style>
+  :root{
+    --bg:#0b0d12; --bg-soft:#11141b; --panel:#141823; --panel-2:#181d2a;
+    --line:#232a3a; --line-soft:#1b212e;
+    --ink:#e8ecf5; --ink-dim:#9aa6bd; --ink-faint:#697088;
+    --accent:#6ea8fe; --accent-2:#7ee0c0; --warn:#f0b95c; --bad:#f08a8a; --good:#7ee0a0;
+    --violet:#b794f6; --pink:#f48fb1;
+    --radius:14px; --mono:'SF Mono',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:radial-gradient(1200px 700px at 80% -10%,#16203a 0%,transparent 55%),var(--bg);
+    color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+
+  /* ---- nav ---- */
+  nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(12px);
+    background:rgba(11,13,18,.72);border-bottom:1px solid var(--line-soft)}
+  nav .wrap{display:flex;align-items:center;gap:22px;height:56px;flex-wrap:wrap}
+  nav .brand{font-weight:700;letter-spacing:.2px;margin-right:auto;display:flex;align-items:center;gap:9px}
+  nav .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+  nav a{color:var(--ink-dim);font-size:13px;font-weight:500}
+  nav a:hover{color:var(--ink)}
+
+  /* ---- hero ---- */
+  header.hero{padding:72px 0 40px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--accent-2)}
+  h1{font-size:clamp(30px,4.6vw,52px);line-height:1.05;margin:14px 0 16px;letter-spacing:-.02em;
+    background:linear-gradient(180deg,#fff,#b9c4dd);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:18px;color:var(--ink-dim);max-width:740px}
+  .facts{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+  .fact{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:130px}
+  .fact b{display:block;font-size:22px;font-family:var(--mono);color:#fff}
+  .fact span{font-size:12px;color:var(--ink-faint)}
+
+  section{padding:46px 0;border-top:1px solid var(--line-soft)}
+  h2{font-size:26px;letter-spacing:-.01em;margin:0 0 6px;display:flex;align-items:center;gap:11px}
+  h2 .n{font-family:var(--mono);font-size:13px;color:var(--accent);border:1px solid var(--line);
+    border-radius:7px;padding:3px 8px;font-weight:600}
+  .sub{color:var(--ink-dim);margin:0 0 26px;max-width:760px}
+
+  /* ---- generic card ---- */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+
+  .tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:6px;
+    border:1px solid var(--line);color:var(--ink-dim);background:var(--bg-soft)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--bg-soft);border:1px solid var(--line-soft);
+    padding:1px 6px;border-radius:5px;color:#cfe0ff}
+  .path{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint)}
+
+  /* ---- flow rail (architecture) ---- */
+  .rail{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:6px 2px 14px}
+  .layer{flex:1;min-width:190px;display:flex;flex-direction:column;gap:10px;position:relative;padding:0 14px}
+  .layer:not(:last-child)::after{content:"→";position:absolute;right:-9px;top:46%;color:var(--ink-faint);font-size:20px}
+  .layer h4{margin:0 0 4px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--ink-faint)}
+  .node{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:13px}
+  .node b{display:block;font-size:13px;color:#fff}
+  .node span{font-size:11px;color:var(--ink-faint);font-family:var(--mono)}
+  .node.ext{border-style:dashed;border-color:#3a4358}
+
+  /* ---- pipeline ---- */
+  .pipe{display:flex;flex-direction:column;gap:0}
+  .step{display:grid;grid-template-columns:42px 1fr;gap:16px;position:relative;padding-bottom:18px}
+  .step:not(:last-child)::before{content:"";position:absolute;left:20px;top:38px;bottom:-4px;width:2px;
+    background:linear-gradient(var(--line),var(--line-soft))}
+  .badge{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;font-family:var(--mono);
+    font-weight:700;font-size:14px;background:var(--panel-2);border:1px solid var(--line);z-index:1}
+  .badge.io{color:var(--accent)} .badge.pause{color:var(--warn);border-color:#43381f}
+  .badge.par{color:var(--violet)} .badge.calc{color:var(--accent-2)} .badge.out{color:var(--good)}
+  .step .body{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .step .body h5{margin:0 0 3px;font-size:15px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .step .body p{margin:6px 0 0;font-size:13.5px;color:var(--ink-dim)}
+  .par-fan{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+  @media(max-width:680px){.par-fan{grid-template-columns:1fr}}
+  .mini{background:var(--bg-soft);border:1px solid var(--line-soft);border-radius:9px;padding:10px}
+  .mini b{font-size:12.5px;color:#fff} .mini span{font-size:11px;color:var(--ink-faint)}
+
+  ul.clean{margin:8px 0 0;padding-left:18px} ul.clean li{margin:4px 0;font-size:13.5px;color:var(--ink-dim)}
+
+  /* ---- findings ---- */
+  .finding{border-left:3px solid var(--line);padding:14px 16px;background:var(--panel);
+    border-radius:0 12px 12px 0;border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .finding.dead{border-left-color:var(--bad)} .finding.dup{border-left-color:var(--warn)}
+  .finding.name{border-left-color:var(--violet)} .finding.smell{border-left-color:var(--accent)}
+  .finding h5{margin:0 0 5px;font-size:14.5px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+  .finding p{margin:5px 0 0;font-size:13px;color:var(--ink-dim)}
+  .sev{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px;padding:2px 7px;border-radius:5px}
+  .sev.hi{background:#2a1620;color:var(--bad)} .sev.med{background:#2a2316;color:var(--warn)} .sev.lo{background:#16222a;color:var(--accent)}
+  .fix{margin-top:8px;font-size:12.5px;color:var(--ink);background:var(--bg-soft);border:1px dashed var(--line);
+    border-radius:8px;padding:8px 11px}
+  .fix b{color:var(--good)}
+
+  footer{padding:40px 0 70px;color:var(--ink-faint);font-size:12.5px;text-align:center}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:18px 0 0;font-size:12px;color:var(--ink-dim)}
+  .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:6px;vertical-align:-1px}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <span class="brand"><span class="dot"></span>ASO Audit Agent</span>
+  <a href="#arch">Architecture</a>
+  <a href="#agents">Agents</a>
+  <a href="#pipeline">Workflow</a>
+  <a href="#suspend">Suspend / Resume</a>
+  <a href="#services">Services</a>
+  <a href="#findings">Findings</a>
+</div></nav>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">Mastra · Next.js · System Map</div>
+  <h1>How the ASO Audit Agent works</h1>
+  <p class="lede">A conversational agent that takes an App Store URL or numeric ID, confirms the listing with the
+  user, then runs a multi-step Mastra workflow that gathers public evidence, scores eight ASO factors in parallel,
+  and produces a grounded audit report with an action plan.</p>
+  <div class="facts">
+    <div class="fact"><b>2</b><span>Agents</span></div>
+    <div class="fact"><b>9</b><span>Workflow steps</span></div>
+    <div class="fact"><b>8</b><span>Scored ASO factors</span></div>
+    <div class="fact"><b>3</b><span>Parallel scoring branches</span></div>
+    <div class="fact"><b>3</b><span>External data sources</span></div>
+  </div>
+</div></header>
+
+<!-- ARCHITECTURE -->
+<section id="arch"><div class="wrap">
+  <h2><span class="n">01</span> Architecture at a glance</h2>
+  <p class="sub">The browser talks to Next.js route handlers. Those handlers own session/cookie identity,
+  thread ownership, and persistence, then delegate the actual AI work to Mastra (agent + workflow), which
+  reaches out to three external services.</p>
+  <div class="card">
+    <div class="rail">
+      <div class="layer">
+        <h4>Client</h4>
+        <div class="node"><b>Conversation UI</b><span>useChat · transcript</span></div>
+        <div class="node"><b>Confirmation card</b><span>suspend payload UI</span></div>
+        <div class="node"><b>Workspace panel</b><span>report render</span></div>
+      </div>
+      <div class="layer">
+        <h4>Next.js API</h4>
+        <div class="node"><b>/api/chat</b><span>route.ts</span></div>
+        <div class="node"><b>/api/chat/threads</b><span>CRUD threads</span></div>
+        <div class="node"><b>/api/workflow/aso-audit</b><span>resume</span></div>
+      </div>
+      <div class="layer">
+        <h4>Mastra core</h4>
+        <div class="node"><b>conversationAgent</b><span>chat · memory</span></div>
+        <div class="node"><b>listingAuditWorkflow</b><span>9 steps</span></div>
+        <div class="node"><b>reportAgent</b><span>scoring LLM</span></div>
+        <div class="node"><b>LibSQL storage</b><span>mastra.db</span></div>
+      </div>
+      <div class="layer">
+        <h4>External</h4>
+        <div class="node ext"><b>iTunes API</b><span>lookup · reviews · search</span></div>
+        <div class="node ext"><b>Firecrawl</b><span>listing page scrape</span></div>
+        <div class="node ext"><b>OpenRouter</b><span>gpt-5-mini (LLM)</span></div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>Solid = owned code</span>
+      <span><i style="background:#3a4358;border:1px dashed #5a6275"></i>Dashed = third-party</span>
+    </div>
+  </div>
+</div></section>
+
+<!-- AGENTS -->
+<section id="agents"><div class="wrap">
+  <h2><span class="n">02</span> The two agents</h2>
+  <p class="sub">Both share one model (<code>asoAuditModel</code>, default <code>openrouter/openai/gpt-5-mini</code>).
+  They have deliberately different jobs and trust boundaries.</p>
+  <div class="grid g2">
+    <div class="card">
+      <span class="tag">conversation-agent.ts</span>
+      <h3 style="margin:10px 0 4px">conversationAgent</h3>
+      <p style="color:var(--ink-dim);font-size:14px;margin:0">The front door. Holds the chat, owns memory
+      (last 30 messages + auto-title), and decides when to invoke the audit workflow.</p>
+      <ul class="clean">
+        <li>Has <code>memory</code> (LibSQL) with <code>generateTitle</code></li>
+        <li>Registers <code>listingAuditWorkflow</code> as a callable workflow</li>
+        <li><code>autoResumeSuspendedTools: true</code> by default</li>
+        <li>Runs <code>activeWorkflowSuspensionOnlyProcessor</code> on input</li>
+      </ul>
+    </div>
+    <div class="card">
+      <span class="tag">report-agent.ts</span>
+      <h3 style="margin:10px 0 4px">reportAgent</h3>
+      <p style="color:var(--ink-dim);font-size:14px;margin:0">The scoring brain. <b>Stateless</b> — no memory,
+      no tools, no workflows. Invoked only from inside workflow steps via <code>structuredOutput</code>.</p>
+      <ul class="clean">
+        <li>Treats listing/review/page text as <b>untrusted evidence</b></li>
+        <li>Called 4× per audit (text, visual, market, action plan)</li>
+        <li>Each call: <code>maxSteps:1</code>, <code>toolChoice:'none'</code></li>
+        <li>Every call has a deterministic fallback if the model fails</li>
+      </ul>
+    </div>
+  </div>
+</div></section>
+
+<!-- PIPELINE -->
+<section id="pipeline"><div class="wrap">
+  <h2><span class="n">03</span> The audit workflow</h2>
+  <p class="sub">Defined in <span class="path">workflows/listing-audit/workflow.ts</span>. Linear except for a
+  three-way parallel scoring fan-out, then a deterministic merge.</p>
+  <div class="card">
+    <div class="pipe">
+
+      <div class="step"><div class="badge io">1</div><div class="body">
+        <h5>fetchMetadata <span class="tag">app-lookup</span></h5>
+        <p>Parses the URL/ID and calls iTunes <code>lookup</code>. Returns ~30 metadata fields
+        (<code>lookupAppMetadata</code>).</p>
+      </div></div>
+
+      <div class="step"><div class="badge pause">2</div><div class="body">
+        <h5>userConfirmation <span class="tag" style="border-color:#43381f;color:var(--warn)">suspends</span></h5>
+        <p>Calls <code>suspend()</code> with “Is this the app you meant?” and the listing card payload. The run
+        pauses here until the user confirms/rejects. Reject → <code>bail()</code> with a rejection narrative.</p>
+      </div></div>
+
+      <div class="step"><div class="badge io">3</div><div class="body">
+        <h5>collectListingPageEvidence</h5>
+        <p>Firecrawl scrape of the public listing page → subtitle, promo text, in-app events, screenshot URLs.
+        Merges Apple-lookup screenshots in as backup.</p>
+      </div></div>
+
+      <div class="step"><div class="badge io">4</div><div class="body">
+        <h5>collectMarketSignals</h5>
+        <p>Parallel iTunes calls (<code>Promise.allSettled</code>): recent reviews RSS + related-app search.
+        Failures degrade to notes, never throw.</p>
+      </div></div>
+
+      <div class="step"><div class="badge par">5</div><div class="body">
+        <h5>Parallel scoring fan-out <span class="tag" style="border-color:#352a4d;color:var(--violet)">.parallel()</span></h5>
+        <p>Three independent <code>reportAgent</code> calls run at once, each scoring its own slice of the 8 factors.</p>
+        <div class="par-fan">
+          <div class="mini"><b>scoreListingText</b><span>title · subtitle · description · conversion</span></div>
+          <div class="mini"><b>scoreVisualAssets</b><span>screenshots · icon (image input)</span></div>
+          <div class="mini"><b>scoreMarketSignals</b><span>ratings/reviews · competitive pos.</span></div>
+        </div>
+      </div></div>
+
+      <div class="step"><div class="badge calc">6</div><div class="body">
+        <h5>assembleScoreCard <span class="tag">deterministic</span></h5>
+        <p>Merges the 3 branches, asserts all 8 factors present, applies fixed weights, computes the weighted
+        <code>overallScore</code>, and sets confidence (high vs limited based on evidence completeness).</p>
+      </div></div>
+
+      <div class="step"><div class="badge par">7</div><div class="body">
+        <h5>generateActionPlan</h5>
+        <p>Fourth <code>reportAgent</code> call → summary + exactly 3 quick wins, 3 high-impact changes,
+        3 strategic recommendations, each citing supplied evidence.</p>
+      </div></div>
+
+      <div class="step"><div class="badge out">8</div><div class="body">
+        <h5>scoreReport <span class="tag" style="border-color:#1f3a2a;color:var(--good)">output</span></h5>
+        <p>Validates everything against <code>reportSchema</code> and emits the final
+        <code>{ narrative, report, evidence }</code> structure consumed by the UI.</p>
+      </div></div>
+
+    </div>
+  </div>
+</div></section>
+
+<!-- SUSPEND/RESUME -->
+<section id="suspend"><div class="wrap">
+  <h2><span class="n">04</span> Suspend, resume &amp; persistence</h2>
+  <p class="sub">The trickiest part of the system: the workflow pauses for human confirmation, the stream is
+  <b>teed</b> so a copy can be persisted to memory, and a resume request must prove the run is genuinely suspended
+  before continuing.</p>
+  <div class="grid g2">
+    <div class="card">
+      <h3 style="margin:0 0 8px;font-size:17px">① First turn — start &amp; pause</h3>
+      <ul class="clean">
+        <li><code>/api/chat</code> validates body, resolves visitor cookie → <code>resourceId</code></li>
+        <li>Confirms thread ownership (<code>getOwnedConversationThread</code>)</li>
+        <li>Streams the agent; <code>stream.tee()</code> splits client vs persistence copy</li>
+        <li><code>persistSuspendedWorkflowPart</code> drains the second copy and saves the suspended snapshot
+        (with a stable <code>runId</code>) to memory</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px;font-size:17px">② Second turn — resume</h3>
+      <ul class="clean">
+        <li>UI posts <code>{ workflowResume: { runId, confirmed } }</code></li>
+        <li><code>handleWorkflowResume</code> reloads stored messages and checks
+        <b>both</b> the message snapshot <i>and</i> live run state are <code>suspended</code></li>
+        <li><code>handleWorkflowStream</code> resumes with the resume data</li>
+        <li><code>persistFinalWorkflowPart</code> saves the final snapshot + a hidden
+        <code>hiddenWorkflowContext</code> text message so later chat turns “know” the result</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px;border-left:3px solid var(--accent)">
+    <h3 style="margin:0 0 6px;font-size:16px">The suspension processor &amp; auto-resume override</h3>
+    <p style="margin:0;color:var(--ink-dim);font-size:13.5px"><code>activeWorkflowSuspensionOnlyProcessor</code>
+    (input processor) strips <code>suspendedTools</code>/<code>pendingToolApprovals</code> metadata that belong to
+    <i>stale</i> runs, keeping only the latest suspended run’s id. Meanwhile <code>getAutoResumeOverride</code> in
+    the chat route walks recent messages and disables auto-resume when the newest workflow part is <b>not</b> a live
+    suspended run — preventing the agent from auto-firing a dead confirmation. These two guards overlap conceptually
+    and are the most fragile, hardest-to-follow code in the repo.</p>
+  </div>
+</div></section>
+
+<!-- SERVICES -->
+<section id="services"><div class="wrap">
+  <h2><span class="n">05</span> Services &amp; data sources</h2>
+  <p class="sub">Pure-ish modules under <span class="path">mastra/services</span>. All network responses are validated
+  and normalized; failures degrade gracefully into evidence notes rather than crashing the audit.</p>
+  <div class="grid g3">
+    <div class="card">
+      <span class="tag">apple-client.ts</span>
+      <h4 style="margin:9px 0 4px">iTunes client</h4>
+      <p style="font-size:13px;color:var(--ink-dim);margin:0"><code>lookupApp</code>, <code>getRecentReviews</code>,
+      <code>searchRelatedApps</code>. Hand-written defensive parsers + typed error classes. Injectable
+      <code>fetch</code> for testing.</p>
+    </div>
+    <div class="card">
+      <span class="tag">listing-page-evidence.ts</span>
+      <h4 style="margin:9px 0 4px">Firecrawl scraper</h4>
+      <p style="font-size:13px;color:var(--ink-dim);margin:0">Scrapes markdown + HTML + JSON. Extracts subtitle,
+      promo text, in-app events, and filters mzstatic screenshot URLs by dimension/aspect ratio.</p>
+    </div>
+    <div class="card">
+      <span class="tag">market-signal-evidence.ts</span>
+      <h4 style="margin:9px 0 4px">Market signals</h4>
+      <p style="font-size:13px;color:var(--ink-dim);margin:0">Thin orchestrator: fires reviews + related-apps in
+      parallel via <code>allSettled</code>, collecting notes for any branch that fails.</p>
+    </div>
+  </div>
+</div></section>
+
+<!-- FINDINGS -->
+<section id="findings"><div class="wrap">
+  <h2><span class="n">06</span> Findings — cleanup &amp; improvements</h2>
+  <p class="sub">Concrete issues spotted while reading the Mastra code, grouped by type. None block functionality;
+  most reduce surface area, duplication, or fragility.</p>
+
+  <div class="legend" style="margin-bottom:18px">
+    <span><i style="background:var(--bad)"></i>Dead code</span>
+    <span><i style="background:var(--warn)"></i>Duplication</span>
+    <span><i style="background:var(--violet)"></i>Naming / placement</span>
+    <span><i style="background:var(--accent)"></i>Robustness / smell</span>
+  </div>
+
+  <div class="grid" style="gap:14px">
+
+    <div class="finding dead">
+      <h5><span class="sev hi">dead</span> Unused <code>appLookupTool</code> + duplicated schema</h5>
+      <p>The <code>createTool(...)</code> in <span class="path">tools/app-lookup-tool.ts:41</span> is never imported.
+      The workflow uses the plain <code>lookupAppMetadata()</code> helper directly. Its hand-written
+      <code>outputSchema</code> (lines 48–83) also duplicates <code>appMetadataSchema</code> in
+      <span class="path">schemas.ts</span> — two definitions that can silently drift.</p>
+      <div class="fix"><b>Fix:</b> delete the tool object (and the duplicate schema); keep only
+      <code>lookupAppMetadata</code> + <code>parseAppLookupInput</code>. If a tool is wanted later, derive its
+      schema from <code>appMetadataSchema</code>.</div>
+    </div>
+
+    <div class="finding dup" style="opacity:.55;border-left-color:var(--good)">
+      <h5><span class="sev" style="background:#1f3a2a;color:var(--good)">fixed</span> Four near-identical <code>generate*</code> functions</h5>
+      <p>Extracted <code>runScoredGeneration(context, config)</code> — a single helper that owns the shared
+      <code>generate({maxSteps:1, toolChoice:'none'})</code> call, the <code>.object</code> guard, abort-rethrow,
+      and deterministic fallback. Each of the four functions is now a declarative config object only.
+      ~100 lines of structural duplication removed from <span class="path">tools/report-tool.ts</span>.</p>
+    </div>
+
+    <div class="finding dup" style="opacity:.55;border-left-color:var(--good)">
+      <h5><span class="sev" style="background:#1f3a2a;color:var(--good)">fixed</span> Thread-title generation configured twice</h5>
+      <p>Exported <code>THREAD_TITLE_INSTRUCTIONS</code> from <span class="path">conversation-agent.ts</span> as the
+      single source of truth. <span class="path">chat/route.ts</span> now imports that constant instead of
+      re-declaring an identical string literal.</p>
+    </div>
+
+    <div class="finding name">
+      <h5><span class="sev lo">name</span> <code>report-tool.ts</code> contains no tool</h5>
+      <p>It lives in <code>tools/</code> and is named <code>*-tool</code>, but exports only agent-invocation /
+      scoring helpers — no Mastra <code>createTool</code>. Same for <code>lookupAppMetadata</code> sitting beside the
+      unused tool.</p>
+      <div class="fix"><b>Fix:</b> move scoring helpers to <code>services/scoring-service.ts</code>; reserve
+      <code>tools/</code> for actual registered tools.</div>
+    </div>
+
+    <div class="finding name">
+      <h5><span class="sev lo">name</span> <code>parseAppLookupInput</code> exported but local-only</h5>
+      <p>Only consumed inside its own module. Unnecessary public surface.</p>
+      <div class="fix"><b>Fix:</b> drop the <code>export</code> unless a test needs it.</div>
+    </div>
+
+    <div class="finding smell">
+      <h5><span class="sev lo">smell</span> <code>extractInAppEvents</code> returns at most one event</h5>
+      <p>In <span class="path">listing-page-evidence.ts:371</span> the schema/return type is an array, but the code
+      only ever emits <code>[{ title: eventLines[0], description: eventLines[1] }]</code>.</p>
+      <div class="fix"><b>Fix:</b> either parse multiple event cards into the array, or narrow the type/docs to
+      reflect “single representative event”.</div>
+    </div>
+
+    <div class="finding smell">
+      <h5><span class="sev lo">smell</span> Observability fixed to <code>realtime</code></h5>
+      <p><span class="path">index.ts</span> always uses <code>strategy:'realtime'</code> — great for Studio, heavier
+      for production traffic.</p>
+      <div class="fix"><b>Fix:</b> gate strategy by <code>NODE_ENV</code> (realtime in dev, batched in prod).</div>
+    </div>
+
+    <div class="finding smell">
+      <h5><span class="sev lo">smell</span> Overlapping suspension guards</h5>
+      <p><code>activeWorkflowSuspensionOnlyProcessor</code> and <code>getAutoResumeOverride</code> both reason about
+      “which suspended run is still live”. The logic is duplicated across an input processor and the route handler,
+      and is the hardest code in the repo to follow.</p>
+      <div class="fix"><b>Fix:</b> centralize “latest live suspended run” detection in one shared helper that both
+      paths call.</div>
+    </div>
+
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  Generated system map · ASO Audit Agent (Mastra + Next.js) · single-file, no external assets.
+</div></footer>
+
+</body>
+</html>
