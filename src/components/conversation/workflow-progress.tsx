@@ -1,9 +1,10 @@
 'use client'
 
 import type { WorkflowDataPart } from '@mastra/ai-sdk'
-import { Check, ChevronDown, ChevronUp, Circle, LoaderCircle, Route, TriangleAlert, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Circle, Clock, LoaderCircle, Route, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { isWorkflowSnapshotPart, type WorkflowPart } from '@/lib/workflow-parts'
 import { LISTING_AUDIT_STEP_IDS } from '@/mastra/workflows/listing-audit/contract'
 
@@ -248,6 +249,102 @@ function getProgressFacts(part: WorkflowDataPart) {
   return facts.slice(0, 4)
 }
 
+function getAuditTone(status: WorkflowDataPart['data']['status']) {
+  switch (status) {
+    case 'success':
+      return {
+        stroke: 'var(--primary)',
+        chipClass: 'border-primary/30 bg-primary/12 hover:bg-primary/18',
+        ringIcon: Check,
+        iconClass: 'text-primary',
+        label: 'Audit complete',
+      }
+    case 'failed':
+      return {
+        stroke: '#fb7185',
+        chipClass: 'border-rose-400/30 bg-rose-400/12 hover:bg-rose-400/18',
+        ringIcon: TriangleAlert,
+        iconClass: 'text-rose-400',
+        label: 'Audit failed',
+      }
+    case 'suspended':
+      return {
+        stroke: '#fbbf24',
+        chipClass: 'border-amber-400/30 bg-amber-400/12 hover:bg-amber-400/18',
+        ringIcon: Clock,
+        iconClass: 'text-amber-400',
+        label: 'Waiting for you',
+      }
+    default:
+      return {
+        stroke: '#38bdf8',
+        chipClass: 'border-sky-400/30 bg-sky-400/12 hover:bg-sky-400/18',
+        ringIcon: LoaderCircle,
+        iconClass: 'text-sky-400 animate-spin',
+        label: 'Auditing',
+      }
+  }
+}
+
+export function AuditProgressChip({
+  part,
+  open,
+  onToggle,
+}: {
+  part: WorkflowPart | null
+  open: boolean
+  onToggle: () => void
+}) {
+  if (!part || !isWorkflowSnapshotPart(part)) {
+    return null
+  }
+
+  const { completedSteps } = getWorkflowProgressState(part)
+  const total = WORKFLOW_STEPS.length
+  const progressPercent = Math.round((completedSteps / total) * 100)
+  const tone = getAuditTone(part.data.status)
+  const RingIcon = tone.ringIcon
+  const radius = 9
+  const circumference = 2 * Math.PI * radius
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={open}
+      aria-label={open ? 'Hide audit progress' : 'Show audit progress'}
+      title={open ? 'Hide audit progress' : 'Show audit progress'}
+      className={[
+        'group flex items-center gap-2.5 rounded-full border py-1.5 pr-3.5 pl-2 text-left transition-colors',
+        open ? 'border-border bg-muted text-foreground/72 hover:bg-muted/70' : `${tone.chipClass} text-foreground`,
+      ].join(' ')}
+    >
+      <span className="relative flex size-6 items-center justify-center" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" className="-rotate-90">
+          <circle cx="12" cy="12" r={radius} fill="none" stroke="var(--border)" strokeWidth="2.5" />
+          <circle
+            cx="12"
+            cy="12"
+            r={radius}
+            fill="none"
+            stroke={open ? 'var(--muted-foreground)' : tone.stroke}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeDasharray={`${(progressPercent / 100) * circumference} ${circumference}`}
+          />
+        </svg>
+        <RingIcon className={['absolute size-3', open ? 'text-foreground/55' : tone.iconClass].join(' ')} />
+      </span>
+      <span className="flex flex-col leading-tight">
+        <span className="text-xs font-medium">{tone.label}</span>
+        <span className="font-mono text-[10px] text-foreground/45">
+          {completedSteps}/{total} steps · {progressPercent}%
+        </span>
+      </span>
+    </button>
+  )
+}
+
 function WorkflowStepList({ part }: { part: WorkflowDataPart }) {
   const activeStepId = getActiveStepId(part)
   const activeStepRef = useRef<HTMLLIElement>(null)
@@ -265,22 +362,24 @@ function WorkflowStepList({ part }: { part: WorkflowDataPart }) {
   }, [activeStepId])
 
   return (
-    <ol className="space-y-3">
-      {WORKFLOW_STEPS.map((step) => {
+    <ol>
+      {WORKFLOW_STEPS.map((step, index) => {
         const { isDone, isActive, isFailed } = getStepState(part, step.id)
         const Icon = isFailed ? TriangleAlert : isDone ? Check : isActive ? LoaderCircle : Circle
         const displayStatus = getStepDisplayStatus(part, step.id)
+        const isLast = index === WORKFLOW_STEPS.length - 1
+        const showStatusLabel = displayStatus !== 'Done' && displayStatus !== 'Queued'
 
         return (
           <li key={step.id} ref={step.id === activeStepId ? activeStepRef : undefined} className="flex gap-3">
-            <div className="flex flex-col items-center">
+            <div className="flex shrink-0 flex-col items-center">
               <span
                 className={[
                   'flex size-7 items-center justify-center rounded-full border',
                   isActive
-                    ? 'border-primary/40 bg-primary/10'
+                    ? 'border-sky-400/40 bg-sky-400/10'
                     : isDone
-                      ? 'border-primary/25 bg-secondary'
+                      ? 'border-teal-400/30 bg-teal-400/10'
                       : isFailed
                         ? 'border-red-400/30 bg-red-500/10'
                         : 'border-border bg-muted/50',
@@ -290,19 +389,44 @@ function WorkflowStepList({ part }: { part: WorkflowDataPart }) {
                   aria-hidden="true"
                   className={[
                     'size-3.5',
-                    isActive ? 'animate-spin text-primary' : isDone ? 'text-primary/78' : isFailed ? 'text-red-400' : 'text-foreground/28',
+                    isActive ? 'animate-spin text-sky-400' : isDone ? 'text-teal-300' : isFailed ? 'text-red-400' : 'text-foreground/28',
                   ].join(' ')}
                 />
               </span>
+              {!isLast && (
+                <span
+                  className={[
+                    'mt-1 w-px flex-1',
+                    isDone ? 'bg-teal-400/25' : isActive ? 'bg-sky-400/25' : 'bg-border/60',
+                  ].join(' ')}
+                />
+              )}
             </div>
-            <div className="min-w-0 flex-1 pb-1">
+            <div className={['min-w-0 flex-1', isLast ? 'pb-0' : 'pb-4'].join(' ')}>
               <div className="flex items-start justify-between gap-3">
-                <p className="truncate text-sm font-medium text-foreground/78" title={step.label}>{step.label}</p>
-                <span className={['shrink-0 text-xs', isActive ? 'text-primary/80' : isFailed ? 'text-red-400' : 'text-foreground/38'].join(' ')}>
-                  {displayStatus}
-                </span>
+                <p
+                  className={[
+                    'truncate text-sm font-medium',
+                    isActive ? 'text-foreground' : isDone ? 'text-foreground/70' : isFailed ? 'text-foreground/78' : 'text-foreground/40',
+                  ].join(' ')}
+                  title={step.label}
+                >
+                  {step.label}
+                </p>
+                {showStatusLabel && (
+                  <span className={['shrink-0 text-xs', isActive ? 'text-sky-400' : isFailed ? 'text-red-400' : 'text-amber-400'].join(' ')}>
+                    {displayStatus}
+                  </span>
+                )}
               </div>
-              <p className="mt-0.5 text-xs leading-5 text-foreground/42">{step.description}</p>
+              <p
+                className={[
+                  'mt-0.5 text-xs leading-5',
+                  isActive ? 'text-foreground/55' : 'text-foreground/38',
+                ].join(' ')}
+              >
+                {step.description}
+              </p>
             </div>
           </li>
         )
@@ -337,7 +461,7 @@ export function WorkflowProgressPanel({
           </div>
           <div className="flex items-center gap-1">
             {part.data.status === 'running' ? (
-              <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
+              <LoaderCircle className="size-4 animate-spin text-sky-400" aria-hidden="true" />
             ) : null}
             {onClose ? (
               <button
@@ -355,28 +479,30 @@ export function WorkflowProgressPanel({
         <div className="mt-4">
           <div className="flex items-center justify-between text-xs">
             <span className="text-foreground/50">{completedSteps} of {WORKFLOW_STEPS.length} steps complete</span>
-            <span className="font-mono text-primary/80">{progressPercent}%</span>
+            <span className="font-mono text-teal-300">{progressPercent}%</span>
           </div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary" style={{ width: `${progressPercent}%` }} />
+            <div className="h-full rounded-full bg-gradient-to-r from-sky-400 to-teal-300 transition-all duration-500" style={{ width: `${progressPercent}%` }} />
           </div>
         </div>
         <p className="mt-3 text-xs leading-5 text-foreground/44">{detail}</p>
         {facts.length > 0 ? (
-          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
+          <dl className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3">
             {facts.map((fact) => (
-              <div key={fact.label} className="flex items-baseline justify-between gap-2">
-                <dt className="text-foreground/38">{fact.label}</dt>
-                <dd className="font-mono text-foreground/68">{fact.value}</dd>
+              <div key={fact.label} className="flex flex-col rounded-lg bg-muted/60 px-3 py-2">
+                <dt className="text-[10px] uppercase tracking-wider text-foreground/38">{fact.label}</dt>
+                <dd className="mt-0.5 font-mono text-sm font-medium text-foreground/80">{fact.value}</dd>
               </div>
             ))}
           </dl>
         ) : null}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        <WorkflowStepList part={part} />
-      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="px-4 py-4">
+          <WorkflowStepList part={part} />
+        </div>
+      </ScrollArea>
     </aside>
   )
 }
@@ -432,7 +558,7 @@ export function WorkflowStickyTimeline({
                   <div
                     className={[
                       'h-1 rounded-full transition-colors duration-200',
-                      isFailed ? 'bg-red-400' : isDone || isActive ? 'bg-primary' : 'bg-muted',
+                      isFailed ? 'bg-red-400' : isActive ? 'bg-sky-400' : isDone ? 'bg-teal-300' : 'bg-muted',
                     ].join(' ')}
                   />
                   <p
