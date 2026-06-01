@@ -35,6 +35,20 @@ export function isWorkflowPart(part: unknown): part is WorkflowPart {
   )
 }
 
+export function getLatestWorkflowSnapshot(messages: Array<{ parts: unknown[] }>): WorkflowDataPart | null {
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const parts = messages[messageIndex].parts
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = parts[partIndex]
+      if (isWorkflowPart(part) && isWorkflowSnapshotPart(part)) {
+        return part
+      }
+    }
+  }
+
+  return null
+}
+
 export function getWorkflowRunId(part: WorkflowDataPart) {
   if ('runId' in part.data && typeof part.data.runId === 'string') {
     return part.data.runId

@@ -28,6 +28,7 @@ function readRememberedThread() {
 export function useConversationThread() {
   const [threads, setThreads] = useState<ConversationThread[]>([])
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null)
+  const [pendingNewThread, setPendingNewThread] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(true)
   const [conversationLoading, setConversationLoading] = useState(false)
   const [historyError, setHistoryError] = useState<UiErrorState | null>(null)
@@ -133,7 +134,17 @@ export function useConversationThread() {
     [setMessages],
   )
 
+  const startNewConversation = useCallback(() => {
+    activeThreadRef.current = null
+    setSelectedThreadId(null)
+    setMessages([])
+    setConversationError(null)
+    setPendingNewThread(true)
+    forgetRememberedThread()
+  }, [setMessages])
+
   const createThread = useCallback(async () => {
+    setPendingNewThread(false)
     setHistoryLoading(true)
     setHistoryError(null)
 
@@ -151,8 +162,10 @@ export function useConversationThread() {
       setMessages([])
       setConversationError(null)
       rememberThread(thread.id)
+      return thread
     } catch (error) {
       setHistoryError(toUiError(error, 'A new conversation could not be created.'))
+      return null
     } finally {
       setHistoryLoading(false)
     }
@@ -176,11 +189,7 @@ export function useConversationThread() {
         }
 
         if (remainingThreads.length === 0) {
-          activeThreadRef.current = null
-          setSelectedThreadId(null)
-          setMessages([])
-          forgetRememberedThread()
-          await createThread()
+          startNewConversation()
           return
         }
 
@@ -189,7 +198,7 @@ export function useConversationThread() {
         setHistoryError(toUiError(error, 'This conversation could not be deleted.'))
       }
     },
-    [createThread, selectedThreadId, selectThread, setMessages, threads],
+    [selectedThreadId, selectThread, startNewConversation, setMessages, threads],
   )
 
   useEffect(() => {
@@ -208,7 +217,7 @@ export function useConversationThread() {
 
         setThreads(nextThreads)
         if (nextThreads.length === 0) {
-          await createThread()
+          if (active) startNewConversation()
           return
         }
 
@@ -231,20 +240,28 @@ export function useConversationThread() {
     return () => {
       active = false
     }
-  }, [createThread, selectThread])
+  }, [startNewConversation, selectThread])
 
   const submitPrompt = useCallback(
-    (prompt: string) => {
+    async (prompt: string) => {
       const text = prompt.trim()
-      if (!text || !selectedThreadId || status !== 'ready') {
+      if (!text || status !== 'ready') {
         return
       }
 
       clearError()
       setConversationError(null)
-      void sendMessage({ text }, { body: { threadId: selectedThreadId } })
+
+      let threadId = selectedThreadId
+      if (!threadId) {
+        const thread = await createThread()
+        if (!thread) return
+        threadId = thread.id
+      }
+
+      void sendMessage({ text }, { body: { threadId } })
     },
-    [clearError, selectedThreadId, sendMessage, status],
+    [clearError, createThread, selectedThreadId, sendMessage, status],
   )
 
   const resolveConfirmation = useCallback(
@@ -281,15 +298,16 @@ export function useConversationThread() {
   return {
     conversationError: conversationError ?? streamingError,
     conversationLoading,
-    createThread,
     deleteThread,
     historyError,
     historyLoading,
     messages: visibleMessages,
     pendingConfirmation,
+    pendingNewThread,
     resolveConfirmation,
     selectThread,
     selectedThreadId,
+    startNewConversation,
     status,
     stop,
     submitPrompt,
