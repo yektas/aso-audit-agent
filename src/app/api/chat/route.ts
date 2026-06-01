@@ -8,6 +8,7 @@ import { appendVisitorCookie, getVisitorSession } from '@/lib/visitor-session'
 import { CONVERSATION_AGENT_ID, getConversationMemory, getOwnedConversationThread } from '@/lib/conversation-memory'
 import { handleWorkflowResume } from '@/lib/workflow-resume'
 import { mastra } from '@/mastra'
+import { asoAuditModel } from '@/mastra/model'
 import { LISTING_AUDIT_WORKFLOW_KEY } from '@/mastra/workflows/listing-audit/contract'
 
 type ChatParams = {
@@ -202,7 +203,7 @@ export async function POST(req: Request) {
         .getAgentById(CONVERSATION_AGENT_ID)
         .generateTitleFromUserMessage({
           messages: titleMessages,
-          model: 'openrouter/openai/gpt-5-mini',
+          model: asoAuditModel,
           instructions: THREAD_TITLE_INSTRUCTIONS,
         })
 

@@ -4,6 +4,7 @@ import { Memory } from '@mastra/memory';
 import { LISTING_AUDIT_WORKFLOW_KEY } from '../workflows/listing-audit/contract';
 import { listingAuditWorkflow } from '../workflows/listing-audit';
 import { activeWorkflowSuspensionOnlyProcessor } from '../processors/workflow-suspension-processor';
+import { asoAuditModel } from '../model';
 
 export const conversationAgent = new Agent({
   id: 'aso-audit-agent',
@@ -19,12 +20,12 @@ export const conversationAgent = new Agent({
     'If a proposed listing is rejected, ask for the correct App Store URL or numeric ID.',
     'Be concise and ask for an App Store URL or numeric App Store ID when the user has not provided one.',
   ],
-  model: 'openrouter/openai/gpt-5-mini',
+  model: asoAuditModel,
   memory: new Memory({
     options: {
       lastMessages: 30,
       generateTitle: {
-        model: 'openrouter/openai/gpt-5-mini',
+        model: asoAuditModel,
         instructions: 'Generate a concise title of at most five words for this App Store audit conversation.',
       },
     },
