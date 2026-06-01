@@ -9,6 +9,7 @@ import {
   isWorkflowSnapshotPart,
   type WorkflowPart,
 } from './workflow-parts'
+import { LISTING_AUDIT_STEP_IDS } from '@/mastra/workflows/listing-audit/contract'
 
 export function WorkflowEvent({
   part,
@@ -27,7 +28,7 @@ export function WorkflowEvent({
     return null
   }
 
-  const confirmationPayload = part.data.steps?.['user-confirmation']?.suspendPayload
+  const confirmationPayload = part.data.steps?.[LISTING_AUDIT_STEP_IDS.userConfirmation]?.suspendPayload
   const output = getStructuredReportOutput(part.data)
   const runId = getWorkflowRunId(part)
 

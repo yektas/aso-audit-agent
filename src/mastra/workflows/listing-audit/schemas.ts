@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { LISTING_AUDIT_STEP_IDS } from "./contract";
+
 export const workflowInputSchema = z.object({
   app: z.string().min(1).describe("An App Store URL or numeric Apple App Store app ID"),
 });
@@ -184,9 +186,9 @@ export const marketScoreOutputSchema = z.object({
 });
 
 export const parallelScoreOutputSchema = z.object({
-  "score-listing-text": listingTextScoreOutputSchema,
-  "score-visual-assets": visualScoreOutputSchema,
-  "score-market-signals": marketScoreOutputSchema,
+  [LISTING_AUDIT_STEP_IDS.scoreListingText]: listingTextScoreOutputSchema,
+  [LISTING_AUDIT_STEP_IDS.scoreVisualAssets]: visualScoreOutputSchema,
+  [LISTING_AUDIT_STEP_IDS.scoreMarketSignals]: marketScoreOutputSchema,
 });
 
 export const actionPlanSchema = z.object({

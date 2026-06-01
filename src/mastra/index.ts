@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 
 import { conversationAgent } from './agents/conversation-agent';
 import { reportAgent } from './agents/report-agent';
+import { LISTING_AUDIT_WORKFLOW_KEY } from './workflows/listing-audit/contract';
 import { listingAuditWorkflow } from './workflows/listing-audit';
 
 const mastraStorageUrl =
@@ -15,8 +16,8 @@ const mastraStorageUrl =
 export const mastra = new Mastra({
   agents: { conversationAgent, reportAgent },
   workflows: {
-    // Keep this registry key stable because Mastra exposes it as workflow-asoAuditWorkflow.
-    asoAuditWorkflow: listingAuditWorkflow,
+    // Keep this registry key stable because Mastra exposes it through a generated workflow tool name.
+    [LISTING_AUDIT_WORKFLOW_KEY]: listingAuditWorkflow,
   },
   observability: new Observability({
     configs: {

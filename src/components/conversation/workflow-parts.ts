@@ -1,26 +1,15 @@
 import type { WorkflowDataPart, WorkflowStepDataPart } from '@mastra/ai-sdk'
 
 import type { ListingConfirmationPayload } from './listing-confirmation-card'
+import { LISTING_AUDIT_STEP_IDS, listingConfirmationSuspendSchema } from '@/mastra/workflows/listing-audit/contract'
 import type { WorkflowOutput } from '@/mastra/workflows/listing-audit/schemas'
+import { workflowOutputSchema } from '@/mastra/workflows/listing-audit/schemas'
 
 type WorkflowData = WorkflowDataPart['data']
 export type WorkflowPart = WorkflowDataPart | WorkflowStepDataPart
 
 export function isListingConfirmationPayload(value: unknown): value is ListingConfirmationPayload & { message: string } {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-
-  const payload = value as Record<string, unknown>
-  return (
-    typeof payload.message === 'string' &&
-    typeof payload.appStoreId === 'string' &&
-    typeof payload.name === 'string' &&
-    typeof payload.developer === 'string' &&
-    typeof payload.icon === 'string' &&
-    typeof payload.category === 'string' &&
-    typeof payload.country === 'string'
-  )
+  return listingConfirmationSuspendSchema.safeParse(value).success
 }
 
 export function isWorkflowSnapshotPart(part: WorkflowPart): part is WorkflowDataPart {
@@ -37,6 +26,7 @@ export function isWorkflowPart(part: unknown): part is WorkflowPart {
       part.type === 'data-tool-workflow-step' ||
       part.type === 'data-workflow-step') &&
     'data' in part &&
+    part.data !== null &&
     typeof part.data === 'object'
   )
 }
@@ -59,7 +49,7 @@ export function getPendingListingConfirmation(messages: Array<{ parts: unknown[]
         return null
       }
 
-      const payload = part.data.steps?.['user-confirmation']?.suspendPayload
+      const payload = part.data.steps?.[LISTING_AUDIT_STEP_IDS.userConfirmation]?.suspendPayload
       if (isListingConfirmationPayload(payload)) {
         return {
           payload,
@@ -73,34 +63,8 @@ export function getPendingListingConfirmation(messages: Array<{ parts: unknown[]
 }
 
 export function getStructuredReportOutput(data: WorkflowData): WorkflowOutput | null {
-  const output = data.steps?.['full-aso-audit']?.output
-  if (
-    typeof output !== 'object' ||
-    output === null ||
-    !('narrative' in output) ||
-    typeof output.narrative !== 'string' ||
-    !('report' in output) ||
-    typeof output.report !== 'object' ||
-    output.report === null ||
-    !('scoreCard' in output.report) ||
-    !Array.isArray(output.report.scoreCard) ||
-    !('quickWins' in output.report) ||
-    !Array.isArray(output.report.quickWins) ||
-    !('highImpactChanges' in output.report) ||
-    !Array.isArray(output.report.highImpactChanges) ||
-    !('strategicRecommendations' in output.report) ||
-    !Array.isArray(output.report.strategicRecommendations) ||
-    !output.report.quickWins.every((item) => typeof item === 'object' && item !== null && 'beforeAfterExamples' in item && Array.isArray(item.beforeAfterExamples)) ||
-    !output.report.highImpactChanges.every((item) => typeof item === 'object' && item !== null && 'beforeAfterExamples' in item && Array.isArray(item.beforeAfterExamples)) ||
-    !output.report.strategicRecommendations.every((item) => typeof item === 'object' && item !== null && 'beforeAfterExamples' in item && Array.isArray(item.beforeAfterExamples)) ||
-    !('evidence' in output) ||
-    typeof output.evidence !== 'object' ||
-    output.evidence === null
-  ) {
-    return null
-  }
-
-  return output as WorkflowOutput
+  const result = workflowOutputSchema.safeParse(data.steps?.[LISTING_AUDIT_STEP_IDS.fullAsoAudit]?.output)
+  return result.success ? result.data : null
 }
 
 export function hasCompletedReport(parts: unknown[]) {

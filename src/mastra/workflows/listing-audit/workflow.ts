@@ -12,10 +12,11 @@ import {
   scoreVisualAssetsStep,
   scoreReportStep,
 } from './steps';
+import { LISTING_AUDIT_WORKFLOW_ID } from './contract';
 import { workflowInputSchema, workflowOutputSchema } from './schemas';
 
 export const listingAuditWorkflow = createWorkflow({
-  id: 'aso-audit-workflow',
+  id: LISTING_AUDIT_WORKFLOW_ID,
   description: 'Identifies an App Store listing, requests user confirmation, and runs an ASO audit.',
   inputSchema: workflowInputSchema,
   outputSchema: workflowOutputSchema,

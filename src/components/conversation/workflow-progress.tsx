@@ -4,76 +4,80 @@ import type { WorkflowDataPart } from '@mastra/ai-sdk'
 import { Check, ChevronDown, ChevronUp, Circle, LoaderCircle, Route, TriangleAlert, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
-import { Shimmer } from '../ai-elements/shimmer'
+import { LISTING_AUDIT_STEP_IDS } from '@/mastra/workflows/listing-audit/contract'
 import { isWorkflowSnapshotPart, type WorkflowPart } from './workflow-parts'
 
 const RUNNING_STEP_LABELS: Record<string, string> = {
-  'fetch-metadata': 'Finding the App Store listing',
-  'user-confirmation': 'Checking the selected app',
-  'collect-listing-page-evidence': 'Reading public listing details',
-  'collect-audit-evidence': 'Collecting ratings and related apps',
-  'score-listing-text': 'Assessing listing copy',
-  'score-visual-assets': 'Assessing icon and screenshots',
-  'score-market-signals': 'Assessing market signals',
-  'assemble-score-card': 'Calculating the score card',
-  'generate-action-plan': 'Writing recommended actions',
-  'full-aso-audit': 'Preparing the completed audit',
+  [LISTING_AUDIT_STEP_IDS.fetchMetadata]: 'Finding the App Store listing',
+  [LISTING_AUDIT_STEP_IDS.userConfirmation]: 'Checking the selected app',
+  [LISTING_AUDIT_STEP_IDS.collectListingPageEvidence]: 'Reading public listing details',
+  [LISTING_AUDIT_STEP_IDS.collectMarketSignals]: 'Collecting ratings and related apps',
+  [LISTING_AUDIT_STEP_IDS.scoreListingText]: 'Assessing listing copy',
+  [LISTING_AUDIT_STEP_IDS.scoreVisualAssets]: 'Assessing icon and screenshots',
+  [LISTING_AUDIT_STEP_IDS.scoreMarketSignals]: 'Assessing market signals',
+  [LISTING_AUDIT_STEP_IDS.assembleScoreCard]: 'Calculating the score card',
+  [LISTING_AUDIT_STEP_IDS.generateActionPlan]: 'Writing recommended actions',
+  [LISTING_AUDIT_STEP_IDS.fullAsoAudit]: 'Preparing the completed audit',
 }
 
 const WORKFLOW_STEPS = [
   {
-    id: 'fetch-metadata',
+    id: LISTING_AUDIT_STEP_IDS.fetchMetadata,
     label: 'Find listing',
     description: 'Name, category and public metadata',
   },
   {
-    id: 'user-confirmation',
+    id: LISTING_AUDIT_STEP_IDS.userConfirmation,
     label: 'Confirm',
     description: 'Verify that this is the intended app',
   },
   {
-    id: 'collect-listing-page-evidence',
+    id: LISTING_AUDIT_STEP_IDS.collectListingPageEvidence,
     label: 'Read listing',
     description: 'Subtitle, promotional text and screenshots',
   },
   {
-    id: 'collect-audit-evidence',
+    id: LISTING_AUDIT_STEP_IDS.collectMarketSignals,
     label: 'Collect signals',
     description: 'Ratings, recent reviews and related apps',
   },
   {
-    id: 'score-listing-text',
+    id: LISTING_AUDIT_STEP_IDS.scoreListingText,
     label: 'Score copy',
     description: 'Title, subtitle, description and promotions',
   },
   {
-    id: 'score-visual-assets',
+    id: LISTING_AUDIT_STEP_IDS.scoreVisualAssets,
     label: 'Score visuals',
     description: 'App icon and first screenshots',
   },
   {
-    id: 'score-market-signals',
+    id: LISTING_AUDIT_STEP_IDS.scoreMarketSignals,
     label: 'Score market',
     description: 'Reviews, ratings and comparison set',
   },
   {
-    id: 'assemble-score-card',
+    id: LISTING_AUDIT_STEP_IDS.assembleScoreCard,
     label: 'Calculate score',
     description: 'Combine eight weighted ASO factors',
   },
   {
-    id: 'generate-action-plan',
+    id: LISTING_AUDIT_STEP_IDS.generateActionPlan,
     label: 'Write actions',
     description: 'Nine evidence-backed recommendations',
   },
   {
-    id: 'full-aso-audit',
+    id: LISTING_AUDIT_STEP_IDS.fullAsoAudit,
     label: 'Finalize',
     description: 'Publish the score card and action plan',
   },
 ] as const
 
-const PARALLEL_SCORE_STEPS = ['score-listing-text', 'score-visual-assets', 'score-market-signals'] as const
+const PARALLEL_SCORE_STEPS = [
+  LISTING_AUDIT_STEP_IDS.scoreListingText,
+  LISTING_AUDIT_STEP_IDS.scoreVisualAssets,
+  LISTING_AUDIT_STEP_IDS.scoreMarketSignals,
+] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
@@ -177,7 +181,7 @@ function getWorkflowDetail(part: WorkflowDataPart) {
       : 'The remaining score check is finishing before the weighted score card can be calculated.'
   }
 
-  if (part.data.steps?.['generate-action-plan']?.status === 'running') {
+  if (part.data.steps?.[LISTING_AUDIT_STEP_IDS.generateActionPlan]?.status === 'running') {
     return 'The weighted score is ready. Recommendations are being grounded in the collected evidence.'
   }
 
@@ -190,7 +194,7 @@ function getWorkflowDetail(part: WorkflowDataPart) {
 
 function getProgressFacts(part: WorkflowDataPart) {
   const facts: Array<{ label: string; value: string }> = []
-  const evidenceOutput = part.data.steps?.['collect-audit-evidence']?.output
+  const evidenceOutput = part.data.steps?.[LISTING_AUDIT_STEP_IDS.collectMarketSignals]?.output
 
   if (isRecord(evidenceOutput)) {
     if (Array.isArray(evidenceOutput.recentReviews)) {
@@ -205,12 +209,12 @@ function getProgressFacts(part: WorkflowDataPart) {
     }
   }
 
-  const assembledOutput = part.data.steps?.['assemble-score-card']?.output
+  const assembledOutput = part.data.steps?.[LISTING_AUDIT_STEP_IDS.assembleScoreCard]?.output
   if (isRecord(assembledOutput) && isRecord(assembledOutput.scoreCard) && typeof assembledOutput.scoreCard.overallScore === 'number') {
     facts.unshift({ label: 'ASO score', value: `${Math.round(assembledOutput.scoreCard.overallScore)}/100` })
   }
 
-  const finalOutput = part.data.steps?.['full-aso-audit']?.output
+  const finalOutput = part.data.steps?.[LISTING_AUDIT_STEP_IDS.fullAsoAudit]?.output
   if (isRecord(finalOutput) && isRecord(finalOutput.report) && typeof finalOutput.report.overallScore === 'number') {
     facts[0] = { label: 'ASO score', value: `${Math.round(finalOutput.report.overallScore)}/100` }
   }
@@ -347,14 +351,6 @@ export function WorkflowProgressPanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         <WorkflowStepList part={part} />
       </div>
-
-      {/* <div className="shrink-0 border-t border-border px-4 py-3 text-xs leading-5 text-foreground/42">
-        {part.data.status === 'success'
-          ? 'Complete. The audit result is available in the conversation.'
-          : part.data.status === 'suspended'
-            ? 'Waiting for your confirmation before the audit continues.'
-            : 'This panel updates as the workflow emits new step snapshots.'}
-      </div> */}
     </aside>
   )
 }

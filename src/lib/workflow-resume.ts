@@ -7,8 +7,8 @@ import { NextResponse } from 'next/server'
 import { getConversationMemory, getOwnedConversationThread } from '@/lib/conversation-memory'
 import { appendVisitorCookie, getVisitorSession } from '@/lib/visitor-session'
 import { mastra } from '@/mastra'
-
-const WORKFLOW_REGISTRY_KEY = 'asoAuditWorkflow'
+import { LISTING_AUDIT_STEP_IDS, LISTING_AUDIT_WORKFLOW_KEY } from '@/mastra/workflows/listing-audit/contract'
+import { workflowOutputSchema } from '@/mastra/workflows/listing-audit/schemas'
 
 export type WorkflowResumeParams = {
   runId?: unknown
@@ -26,7 +26,9 @@ function isWorkflowPart(part: unknown): part is WorkflowDataPart {
     part !== null &&
     'type' in part &&
     (part.type === 'data-tool-workflow' || part.type === 'data-workflow') &&
-    'data' in part
+    'data' in part &&
+    part.data !== null &&
+    typeof part.data === 'object'
   )
 }
 
@@ -56,20 +58,16 @@ function hasSuspendedRun(messages: UIMessage[], runId: string) {
 }
 
 async function isStoredRunSuspended(runId: string) {
-  const state = await mastra.getWorkflowById('aso-audit-workflow').getWorkflowRunById(runId)
+  const state = await mastra.getWorkflow(LISTING_AUDIT_WORKFLOW_KEY).getWorkflowRunById(runId)
   return state?.status === 'suspended'
 }
 
 function getWorkflowContextText(part: WorkflowDataPart) {
-  const output = part.data.steps?.['full-aso-audit']?.output
-  if (part.data.status === 'success' && typeof output === 'object' && output !== null) {
-    if ('report' in output && typeof output.report === 'object' && output.report !== null && 'summary' in output.report && typeof output.report.summary === 'string') {
-      return `The ASO audit completed successfully using the ASO audit skill score-card framework. Structured audit report:\n${JSON.stringify(output.report)}`
-    }
+  const output = part.data.steps?.[LISTING_AUDIT_STEP_IDS.fullAsoAudit]?.output
+  const parsedOutput = workflowOutputSchema.safeParse(output)
 
-    if ('recommendations' in output && typeof output.recommendations === 'string') {
-      return `The ASO audit completed successfully. Audit findings:\n${output.recommendations}`
-    }
+  if (part.data.status === 'success' && parsedOutput.success) {
+    return `The ASO audit completed successfully. Structured audit report:\n${JSON.stringify(parsedOutput.data.report)}`
   }
 
   if (part.data.status === 'bailed') {
@@ -162,7 +160,7 @@ export async function handleWorkflowResume(req: Request, params: WorkflowResumeP
   const stream = await handleWorkflowStream({
     version: 'v6',
     mastra,
-    workflowId: WORKFLOW_REGISTRY_KEY,
+    workflowId: LISTING_AUDIT_WORKFLOW_KEY,
     includeTextStreamParts: true,
     sendReasoning: true,
     params: {

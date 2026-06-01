@@ -5,6 +5,7 @@ import { collectMarketSignalEvidence } from "../../services/market-signal-eviden
 import { collectListingPageEvidence } from "../../services/listing-page-evidence";
 import { generateActionPlan, generateListingTextScores, generateMarketScores, generateVisualScores } from "../../tools/report-tool";
 import { lookupAppMetadata } from "../../tools/app-lookup-tool";
+import { LISTING_AUDIT_STEP_IDS, listingConfirmationResumeSchema, listingConfirmationSuspendSchema } from "./contract";
 import {
   actionPlanOutputSchema,
   appMetadataSchema,
@@ -32,7 +33,7 @@ const FACTOR_WEIGHTS = {
 } as const;
 
 export const fetchMetadataStep = createStep({
-  id: "fetch-metadata",
+  id: LISTING_AUDIT_STEP_IDS.fetchMetadata,
   inputSchema: z.object({
     app: z.string().min(1),
   }),
@@ -43,21 +44,11 @@ export const fetchMetadataStep = createStep({
 });
 
 export const confirmationStep = createStep({
-  id: "user-confirmation",
+  id: LISTING_AUDIT_STEP_IDS.userConfirmation,
   inputSchema: appMetadataSchema,
   outputSchema: confirmationOutputSchema,
-  suspendSchema: z.object({
-    message: z.string(),
-    appStoreId: z.string(),
-    name: z.string(),
-    developer: z.string(),
-    icon: z.string(),
-    category: z.string(),
-    country: z.string(),
-  }),
-  resumeSchema: z.object({
-    confirmed: z.boolean(),
-  }),
+  suspendSchema: listingConfirmationSuspendSchema,
+  resumeSchema: listingConfirmationResumeSchema,
   execute: async ({ inputData, resumeData, suspend, bail }) => {
     if (resumeData?.confirmed === false) {
       return bail({
@@ -86,34 +77,34 @@ export const confirmationStep = createStep({
 });
 
 export const scoreListingTextStep = createStep({
-  id: "score-listing-text",
+  id: LISTING_AUDIT_STEP_IDS.scoreListingText,
   inputSchema: reportInputSchema,
   outputSchema: listingTextScoreOutputSchema,
   execute: async ({ inputData, mastra, abortSignal }) => generateListingTextScores(inputData, { mastra, abortSignal }),
 });
 
 export const scoreVisualAssetsStep = createStep({
-  id: "score-visual-assets",
+  id: LISTING_AUDIT_STEP_IDS.scoreVisualAssets,
   inputSchema: reportInputSchema,
   outputSchema: visualScoreOutputSchema,
   execute: async ({ inputData, mastra, abortSignal }) => generateVisualScores(inputData, { mastra, abortSignal }),
 });
 
 export const scoreMarketSignalsStep = createStep({
-  id: "score-market-signals",
+  id: LISTING_AUDIT_STEP_IDS.scoreMarketSignals,
   inputSchema: reportInputSchema,
   outputSchema: marketScoreOutputSchema,
   execute: async ({ inputData, mastra, abortSignal }) => generateMarketScores(inputData, { mastra, abortSignal }),
 });
 
 export const assembleScoreCardStep = createStep({
-  id: "assemble-score-card",
+  id: LISTING_AUDIT_STEP_IDS.assembleScoreCard,
   inputSchema: parallelScoreOutputSchema,
   outputSchema: scoredAuditInputSchema,
   execute: async ({ inputData }) => {
-    const listingText = inputData["score-listing-text"];
-    const visualAssets = inputData["score-visual-assets"];
-    const marketSignals = inputData["score-market-signals"];
+    const listingText = inputData[LISTING_AUDIT_STEP_IDS.scoreListingText];
+    const visualAssets = inputData[LISTING_AUDIT_STEP_IDS.scoreVisualAssets];
+    const marketSignals = inputData[LISTING_AUDIT_STEP_IDS.scoreMarketSignals];
     const returnedFactors = [...listingText.factors, ...visualAssets.factors, ...marketSignals.factors];
 
     if (new Set(returnedFactors.map(({ factor }) => factor)).size !== 8) {
@@ -148,7 +139,7 @@ export const assembleScoreCardStep = createStep({
 });
 
 export const generateActionPlanStep = createStep({
-  id: "generate-action-plan",
+  id: LISTING_AUDIT_STEP_IDS.generateActionPlan,
   inputSchema: scoredAuditInputSchema,
   outputSchema: actionPlanOutputSchema,
   execute: async ({ inputData, mastra, abortSignal }) => ({
@@ -158,7 +149,7 @@ export const generateActionPlanStep = createStep({
 });
 
 export const scoreReportStep = createStep({
-  id: "full-aso-audit",
+  id: LISTING_AUDIT_STEP_IDS.fullAsoAudit,
   inputSchema: actionPlanOutputSchema,
   outputSchema: workflowOutputSchema,
   execute: async ({ inputData }) => {
@@ -185,7 +176,7 @@ export const scoreReportStep = createStep({
 });
 
 export const collectListingPageEvidenceStep = createStep({
-  id: "collect-listing-page-evidence",
+  id: LISTING_AUDIT_STEP_IDS.collectListingPageEvidence,
   inputSchema: confirmationOutputSchema,
   outputSchema: listingPageEvidenceOutputSchema,
   execute: async ({ inputData }) => ({
@@ -195,7 +186,7 @@ export const collectListingPageEvidenceStep = createStep({
 });
 
 export const collectMarketSignalsStep = createStep({
-  id: "collect-audit-evidence",
+  id: LISTING_AUDIT_STEP_IDS.collectMarketSignals,
   inputSchema: listingPageEvidenceOutputSchema,
   outputSchema: reportInputSchema,
   execute: async ({ inputData }) => ({
