@@ -4,9 +4,9 @@ import { handleChatStream, type WorkflowDataPart } from '@mastra/ai-sdk'
 import { createUIMessageStreamResponse, type UIMessage } from 'ai'
 import { NextResponse } from 'next/server'
 
-import { appendAuditVisitorCookie, getAuditVisitorSession } from '@/lib/audit-session'
-import { AUDIT_AGENT_ID, getAuditMemory, getOwnedAuditThread } from '@/lib/audit-conversations'
-import { handleAsoAuditWorkflowResume } from '@/lib/aso-audit-workflow-resume'
+import { appendVisitorCookie, getVisitorSession } from '@/lib/visitor-session'
+import { CONVERSATION_AGENT_ID, getConversationMemory, getOwnedConversationThread } from '@/lib/conversation-memory'
+import { handleWorkflowResume } from '@/lib/workflow-resume'
 import { mastra } from '@/mastra'
 
 type ChatParams = {
@@ -21,7 +21,8 @@ type ChatParams = {
 
 const APP_STORE_URL_PATTERN = /https?:\/\/apps\.apple\.com\/\S*\/id\d+/i
 const APP_STORE_ID_PATTERN = /^\s*\d{5,}\s*$/
-const AUDIT_WORKFLOW_TOOL_NAME = 'workflow-asoAuditWorkflow'
+const LISTING_AUDIT_WORKFLOW_TOOL_NAME = 'workflow-asoAuditWorkflow'
+const THREAD_TITLE_INSTRUCTIONS = 'Generate a concise title of at most five words for this App Store audit conversation.'
 
 function getThreadId(value: unknown) {
   if (typeof value !== 'string') {
@@ -51,6 +52,29 @@ function hasAppListingInput(messages: unknown[] | undefined) {
 
   const text = lastMessage.parts.filter(isTextPart).map((part) => part.text).join('\n')
   return APP_STORE_URL_PATTERN.test(text) || APP_STORE_ID_PATTERN.test(text)
+}
+
+function getUiMessagesForTitleGeneration(messages: unknown[] | undefined) {
+  if (!Array.isArray(messages)) {
+    return []
+  }
+
+  return messages.flatMap((message) => {
+    if (typeof message !== 'object' || message === null || !('role' in message) || typeof message.role !== 'string') {
+      return []
+    }
+
+    const content =
+      'content' in message && typeof message.content === 'string'
+        ? message.content
+        : undefined
+    const parts =
+      'parts' in message && Array.isArray(message.parts)
+        ? message.parts.filter((part) => typeof part === 'object' && part !== null && 'type' in part)
+        : undefined
+
+    return [{ role: message.role, content, parts }]
+  })
 }
 
 function isSuspendedNestedWorkflowPart(part: unknown): part is WorkflowDataPart {
@@ -153,7 +177,7 @@ export async function POST(req: Request) {
   const threadId = getThreadId(params.threadId)
 
   if (params.workflowResume) {
-    return handleAsoAuditWorkflowResume(req, {
+    return handleWorkflowResume(req, {
       threadId,
       runId: params.workflowResume.runId,
       resumeData: {
@@ -162,42 +186,70 @@ export async function POST(req: Request) {
     })
   }
 
-  const session = getAuditVisitorSession(req)
+  const session = getVisitorSession(req)
 
   if (!threadId) {
-    return appendAuditVisitorCookie(NextResponse.json({ error: 'A conversation thread is required.' }, { status: 400 }), session)
+    return appendVisitorCookie(NextResponse.json({ error: 'A conversation thread is required.' }, { status: 400 }), session)
   }
 
-  const memory = await getAuditMemory()
-  const thread = await getOwnedAuditThread(memory, threadId, session.resourceId)
+  const memory = await getConversationMemory()
+  const thread = await getOwnedConversationThread(memory, threadId, session.resourceId)
 
   if (!thread) {
-    return appendAuditVisitorCookie(NextResponse.json({ error: 'Conversation not found.' }, { status: 404 }), session)
+    return appendVisitorCookie(NextResponse.json({ error: 'Conversation not found.' }, { status: 404 }), session)
+  }
+
+  let resolvedThread = thread
+  const titleMessages = getUiMessagesForTitleGeneration(params.messages)
+
+  if (!resolvedThread.title && titleMessages.length > 0) {
+    try {
+      const title = await mastra
+        .getAgentById(CONVERSATION_AGENT_ID)
+        .generateTitleFromUserMessage({
+          messages: titleMessages,
+          model: 'openrouter/openai/gpt-5-mini',
+          instructions: THREAD_TITLE_INSTRUCTIONS,
+        })
+
+      if (title) {
+        resolvedThread = await memory.createThread({
+          threadId: resolvedThread.id,
+          resourceId: session.resourceId,
+          metadata: resolvedThread.metadata,
+          title,
+        })
+      }
+    } catch (error) {
+      console.error('Unable to generate audit thread title.', error)
+    }
   }
 
   const autoResumeSuspendedTools = await getAutoResumeOverride(memory, thread.id, session.resourceId)
-  const forceAuditWorkflow = hasAppListingInput(params.messages)
-  const { threadId: _threadId, memory: _memory, ...mastraParams } = params
+  const shouldStartListingAudit = hasAppListingInput(params.messages)
+  const mastraParams = { ...params }
+  delete mastraParams.threadId
+  delete mastraParams.memory
   const stream = await handleChatStream({
     version: 'v6',
     mastra,
-    agentId: AUDIT_AGENT_ID,
+    agentId: CONVERSATION_AGENT_ID,
     sendReasoning: true,
     params: {
       ...mastraParams,
-      ...(forceAuditWorkflow
+      ...(shouldStartListingAudit
         ? {
             autoResumeSuspendedTools: false,
-            toolChoice: { type: 'tool' as const, toolName: AUDIT_WORKFLOW_TOOL_NAME },
+            toolChoice: { type: 'tool' as const, toolName: LISTING_AUDIT_WORKFLOW_TOOL_NAME },
           }
         : autoResumeSuspendedTools === false
           ? { autoResumeSuspendedTools }
           : {}),
       memory: {
         thread: {
-          id: thread.id,
-          title: thread.title,
-          metadata: thread.metadata,
+          id: resolvedThread.id,
+          title: resolvedThread.title,
+          metadata: resolvedThread.metadata,
         },
         resource: session.resourceId,
       },
@@ -208,22 +260,22 @@ export async function POST(req: Request) {
     console.error('Unable to persist suspended audit workflow event.', error)
   })
 
-  return appendAuditVisitorCookie(createUIMessageStreamResponse({ stream: clientStream }), session)
+  return appendVisitorCookie(createUIMessageStreamResponse({ stream: clientStream }), session)
 }
 
 export async function GET(req: Request) {
-  const session = getAuditVisitorSession(req)
+  const session = getVisitorSession(req)
   const threadId = getThreadId(new URL(req.url).searchParams.get('threadId'))
 
   if (!threadId) {
-    return appendAuditVisitorCookie(NextResponse.json({ error: 'A conversation thread is required.' }, { status: 400 }), session)
+    return appendVisitorCookie(NextResponse.json({ error: 'A conversation thread is required.' }, { status: 400 }), session)
   }
 
-  const memory = await getAuditMemory()
-  const thread = await getOwnedAuditThread(memory, threadId, session.resourceId)
+  const memory = await getConversationMemory()
+  const thread = await getOwnedConversationThread(memory, threadId, session.resourceId)
 
   if (!thread) {
-    return appendAuditVisitorCookie(NextResponse.json({ error: 'Conversation not found.' }, { status: 404 }), session)
+    return appendVisitorCookie(NextResponse.json({ error: 'Conversation not found.' }, { status: 404 }), session)
   }
 
   const recalled = await memory.recall({
@@ -234,5 +286,5 @@ export async function GET(req: Request) {
   const messageList = new MessageList({ threadId, resourceId: session.resourceId })
   messageList.add(recalled.messages, 'memory')
 
-  return appendAuditVisitorCookie(NextResponse.json(messageList.get.all.aiV6.ui()), session)
+  return appendVisitorCookie(NextResponse.json(messageList.get.all.aiV6.ui()), session)
 }

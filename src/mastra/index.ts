@@ -1,20 +1,41 @@
-
+import { LibSQLStore } from '@mastra/libsql';
 import { Mastra } from '@mastra/core/mastra';
 import { PinoLogger } from '@mastra/loggers';
-import { LibSQLStore } from '@mastra/libsql';
-import { asoAuditAgent } from './agents/aso-audit-agent';
-import { asoAuditWorkflow } from './workflows/aso-audit-workflow';
+import { MastraStorageExporter, Observability } from '@mastra/observability';
+import { resolve } from 'node:path';
 
+import { conversationAgent } from './agents/conversation-agent';
+import { reportAgent } from './agents/report-agent';
+import { listingAuditWorkflow } from './workflows/listing-audit';
+
+const mastraStorageUrl =
+  process.env.MASTRA_STORAGE_URL ??
+  `file:${resolve(process.env.MASTRA_PROJECT_ROOT ?? process.cwd(), 'mastra.db')}`;
 
 export const mastra = new Mastra({
-  agents: { asoAuditAgent },
-  workflows: { asoAuditWorkflow },
-  storage:  new LibSQLStore({
-      id: "mastra-storage",
-      url: "file:./mastra.db",
+  agents: { conversationAgent, reportAgent },
+  workflows: {
+    // Keep this registry key stable because Mastra exposes it as workflow-asoAuditWorkflow.
+    asoAuditWorkflow: listingAuditWorkflow,
+  },
+  observability: new Observability({
+    configs: {
+      default: {
+        serviceName: 'mastra',
+        exporters: [
+          new MastraStorageExporter({
+            strategy: 'realtime', // Immediate visibility for debugging
+          }), // Persists traces to storage for Studio
+        ],
+      },
+    },
+  }),
+  storage: new LibSQLStore({
+    id: 'mastra-storage',
+    url: mastraStorageUrl,
   }),
   logger: new PinoLogger({
     name: 'Mastra',
     level: 'info',
-  })
+  }),
 });

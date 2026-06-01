@@ -16,6 +16,18 @@ _Avoid_: App record, lookup result
 An evaluation of an App Listing that produces optimization recommendations.
 _Avoid_: Report generation flow
 
+**Listing Page Evidence**:
+Publicly crawlable facts from an App Listing's App Store product page that supplement lookup metadata for an ASO Audit.
+_Avoid_: Private listing metadata, App Store Connect data
+
+**Market Signal Evidence**:
+Public review and related-app search signals used to ground an ASO Audit after Listing Confirmation.
+_Avoid_: Audit evidence blob, market data service
+
+**Unavailable Private Metadata**:
+Listing information that is not reliably exposed on the public App Store product page or lookup API and therefore cannot be claimed as extracted unless the user supplies it.
+_Avoid_: Missing crawl data
+
 **Listing Confirmation**:
 The user's explicit acceptance or rejection of an identified App Listing before an ASO Audit begins.
 _Avoid_: Workflow approval
@@ -44,6 +56,14 @@ _Avoid_: Marketing landing page
 
 - An **Audit Conversation** concerns zero or more **App Listings** over time.
 - An **ASO Audit** evaluates exactly one confirmed **App Listing**.
+- **Listing Page Evidence** may supplement a confirmed **App Listing** after **Listing Confirmation** and before an **ASO Audit** is produced.
+- **Market Signal Evidence** may supplement a confirmed **App Listing** after **Listing Confirmation** and before an **ASO Audit** is produced.
+- **Unavailable Private Metadata** may constrain an **ASO Audit** even when lookup metadata and Listing Page Evidence are available.
+- **Listing Page Evidence** is structured evidence extracted from a crawl; raw crawl text is supporting trace data, not the primary audit input.
+- Failure to collect **Listing Page Evidence** reduces audit confidence but does not prevent an **ASO Audit** when lookup metadata and Listing Confirmation are available.
+- Optional crawl configuration may be absent; in that case the ASO Audit records that Listing Page Evidence was skipped rather than failing.
+- **Listing Page Evidence** is collected from the canonical public App Store URL for the confirmed App Listing, preserving the storefront country when available.
+- Developer response crawling is outside the first Listing Page Evidence scope; review evidence remains limited to the existing recent review sample unless a later decision expands it.
 - A **Listing Confirmation** applies to exactly one proposed **App Listing**.
 - An **Audit Conversation** may produce more than one **ASO Audit**.
 - One **Conversation Thread** preserves exactly one **Audit Conversation**.
@@ -70,3 +90,4 @@ _Avoid_: Marketing landing page
 - Until authentication exists, **Conversation History** belongs to an **Anonymous Visitor** identified by the server for one browser.
 - New **Audit Conversations** use a **Conversation Starter** and prompt suggestions rather than an App Listing input form.
 - The visual design language applies through a **Welcome Panel** and a branded conversation workspace, not through marketing-page sections around an active audit.
+- Public crawling can reduce ASO blind spots, but it must not be described as access to App Store Connect-only fields.

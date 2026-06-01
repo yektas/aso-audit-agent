@@ -1,0 +1,430 @@
+'use client'
+
+import type { WorkflowDataPart } from '@mastra/ai-sdk'
+import { Check, ChevronDown, ChevronUp, Circle, LoaderCircle, Route, TriangleAlert, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
+
+import { Shimmer } from '../ai-elements/shimmer'
+import { isWorkflowSnapshotPart, type WorkflowPart } from './workflow-parts'
+
+const RUNNING_STEP_LABELS: Record<string, string> = {
+  'fetch-metadata': 'Finding the App Store listing',
+  'user-confirmation': 'Checking the selected app',
+  'collect-listing-page-evidence': 'Reading public listing details',
+  'collect-audit-evidence': 'Collecting ratings and related apps',
+  'score-listing-text': 'Assessing listing copy',
+  'score-visual-assets': 'Assessing icon and screenshots',
+  'score-market-signals': 'Assessing market signals',
+  'assemble-score-card': 'Calculating the score card',
+  'generate-action-plan': 'Writing recommended actions',
+  'full-aso-audit': 'Preparing the completed audit',
+}
+
+const WORKFLOW_STEPS = [
+  {
+    id: 'fetch-metadata',
+    label: 'Find listing',
+    description: 'Name, category and public metadata',
+  },
+  {
+    id: 'user-confirmation',
+    label: 'Confirm',
+    description: 'Verify that this is the intended app',
+  },
+  {
+    id: 'collect-listing-page-evidence',
+    label: 'Read listing',
+    description: 'Subtitle, promotional text and screenshots',
+  },
+  {
+    id: 'collect-audit-evidence',
+    label: 'Collect signals',
+    description: 'Ratings, recent reviews and related apps',
+  },
+  {
+    id: 'score-listing-text',
+    label: 'Score copy',
+    description: 'Title, subtitle, description and promotions',
+  },
+  {
+    id: 'score-visual-assets',
+    label: 'Score visuals',
+    description: 'App icon and first screenshots',
+  },
+  {
+    id: 'score-market-signals',
+    label: 'Score market',
+    description: 'Reviews, ratings and comparison set',
+  },
+  {
+    id: 'assemble-score-card',
+    label: 'Calculate score',
+    description: 'Combine eight weighted ASO factors',
+  },
+  {
+    id: 'generate-action-plan',
+    label: 'Write actions',
+    description: 'Nine evidence-backed recommendations',
+  },
+  {
+    id: 'full-aso-audit',
+    label: 'Finalize',
+    description: 'Publish the score card and action plan',
+  },
+] as const
+
+const PARALLEL_SCORE_STEPS = ['score-listing-text', 'score-visual-assets', 'score-market-signals'] as const
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function getRunningStepIds(part: WorkflowDataPart) {
+  return Object.entries(part.data.steps ?? {})
+    .filter(([, step]) => step.status === 'running')
+    .map(([stepId]) => stepId)
+}
+
+function getActiveStepId(part: WorkflowDataPart) {
+  const runningStep = getRunningStepIds(part)[0]
+  const suspendedStep = Object.entries(part.data.steps ?? {}).find(([, step]) => step.status === 'suspended')?.[0]
+
+  return runningStep ?? suspendedStep
+}
+
+function getStepIndex(stepId: string) {
+  return WORKFLOW_STEPS.findIndex((step) => step.id === stepId)
+}
+
+function getStepState(part: WorkflowDataPart, stepId: string) {
+  const status = part.data.steps?.[stepId]?.status
+  const activeStep = getActiveStepId(part)
+  const stepIndex = getStepIndex(stepId)
+  const activeStepIndex = activeStep ? getStepIndex(activeStep) : -1
+  const isFailed = status === 'failed'
+  const isActive = status === 'running' || status === 'suspended'
+
+  return {
+    isDone:
+      status === 'success' ||
+      (part.data.status === 'success' && !isFailed) ||
+      (!isFailed && activeStepIndex >= 0 && stepIndex >= 0 && stepIndex < activeStepIndex),
+    isActive,
+    isFailed,
+  }
+}
+
+function getStepDisplayStatus(part: WorkflowDataPart, stepId: string) {
+  const rawStatus = part.data.steps?.[stepId]?.status
+  const { isDone, isActive, isFailed } = getStepState(part, stepId)
+
+  if (isFailed) {
+    return 'Failed'
+  }
+
+  if (isActive && rawStatus === 'suspended') {
+    return 'Waiting'
+  }
+
+  if (isActive) {
+    return 'Running'
+  }
+
+  if (isDone) {
+    return 'Done'
+  }
+
+  return 'Queued'
+}
+
+function getWorkflowProgressState(part: WorkflowDataPart) {
+  const activeStep = getActiveStepId(part)
+  const runningSteps = getRunningStepIds(part)
+  const activeParallelScores = runningSteps.filter((stepId) =>
+    PARALLEL_SCORE_STEPS.includes(stepId as (typeof PARALLEL_SCORE_STEPS)[number]),
+  )
+  const statusLabel =
+    part.data.status === 'suspended'
+      ? 'Waiting for confirmation'
+      : activeParallelScores.length > 1
+        ? 'Scoring copy, visuals and market signals in parallel'
+      : activeStep
+        ? RUNNING_STEP_LABELS[activeStep] ?? 'Running audit workflow'
+        : part.data.status === 'success'
+          ? 'Audit complete'
+          : 'Audit workflow'
+  const completedSteps = WORKFLOW_STEPS.filter((step) => getStepState(part, step.id).isDone).length
+
+  return {
+    completedSteps,
+    statusLabel,
+  }
+}
+
+function getWorkflowDetail(part: WorkflowDataPart) {
+  const runningSteps = getRunningStepIds(part)
+  const activeParallelScores = runningSteps.filter((stepId) =>
+    PARALLEL_SCORE_STEPS.includes(stepId as (typeof PARALLEL_SCORE_STEPS)[number]),
+  )
+
+  if (part.data.status === 'suspended') {
+    return 'Confirm the listing to begin evidence collection and scoring.'
+  }
+
+  if (activeParallelScores.length > 0) {
+    return activeParallelScores.length > 1
+      ? 'Three focused scoring checks run concurrently; this stage completes when the longest remaining check finishes.'
+      : 'The remaining score check is finishing before the weighted score card can be calculated.'
+  }
+
+  if (part.data.steps?.['generate-action-plan']?.status === 'running') {
+    return 'The weighted score is ready. Recommendations are being grounded in the collected evidence.'
+  }
+
+  if (part.data.status === 'success') {
+    return 'The score card, comparison set and recommended actions are ready in the conversation.'
+  }
+
+  return 'Public App Store evidence is collected before any score or recommendation is produced.'
+}
+
+function getProgressFacts(part: WorkflowDataPart) {
+  const facts: Array<{ label: string; value: string }> = []
+  const evidenceOutput = part.data.steps?.['collect-audit-evidence']?.output
+
+  if (isRecord(evidenceOutput)) {
+    if (Array.isArray(evidenceOutput.recentReviews)) {
+      facts.push({ label: 'Reviews', value: `${evidenceOutput.recentReviews.length} sampled` })
+    }
+    if (Array.isArray(evidenceOutput.relatedApps)) {
+      facts.push({ label: 'Related apps', value: `${evidenceOutput.relatedApps.length} compared` })
+    }
+    const pageEvidence = evidenceOutput.listingPageEvidence
+    if (isRecord(pageEvidence) && Array.isArray(pageEvidence.screenshotImageUrls)) {
+      facts.push({ label: 'Screenshots', value: `${pageEvidence.screenshotImageUrls.length} found` })
+    }
+  }
+
+  const assembledOutput = part.data.steps?.['assemble-score-card']?.output
+  if (isRecord(assembledOutput) && isRecord(assembledOutput.scoreCard) && typeof assembledOutput.scoreCard.overallScore === 'number') {
+    facts.unshift({ label: 'ASO score', value: `${Math.round(assembledOutput.scoreCard.overallScore)}/100` })
+  }
+
+  const finalOutput = part.data.steps?.['full-aso-audit']?.output
+  if (isRecord(finalOutput) && isRecord(finalOutput.report) && typeof finalOutput.report.overallScore === 'number') {
+    facts[0] = { label: 'ASO score', value: `${Math.round(finalOutput.report.overallScore)}/100` }
+  }
+
+  return facts.slice(0, 4)
+}
+
+function WorkflowStepList({ part }: { part: WorkflowDataPart }) {
+  const activeStepId = getActiveStepId(part)
+  const activeStepRef = useRef<HTMLLIElement>(null)
+
+  useEffect(() => {
+    if (!activeStepId || !activeStepRef.current) {
+      return
+    }
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    activeStepRef.current.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'nearest',
+    })
+  }, [activeStepId])
+
+  return (
+    <ol className="space-y-3">
+      {WORKFLOW_STEPS.map((step) => {
+        const { isDone, isActive, isFailed } = getStepState(part, step.id)
+        const Icon = isFailed ? TriangleAlert : isDone ? Check : isActive ? LoaderCircle : Circle
+        const displayStatus = getStepDisplayStatus(part, step.id)
+
+        return (
+          <li key={step.id} ref={step.id === activeStepId ? activeStepRef : undefined} className="flex gap-3">
+            <div className="flex flex-col items-center">
+              <span
+                className={[
+                  'flex size-7 items-center justify-center rounded-full border',
+                  isActive
+                    ? 'border-primary/40 bg-primary/10'
+                    : isDone
+                      ? 'border-primary/25 bg-secondary'
+                      : isFailed
+                        ? 'border-red-400/30 bg-red-500/10'
+                        : 'border-border bg-muted/50',
+                ].join(' ')}
+              >
+                <Icon
+                  aria-hidden="true"
+                  className={[
+                    'size-3.5',
+                    isActive ? 'animate-spin text-primary' : isDone ? 'text-primary/78' : isFailed ? 'text-red-400' : 'text-foreground/28',
+                  ].join(' ')}
+                />
+              </span>
+            </div>
+            <div className="min-w-0 flex-1 pb-1">
+              <div className="flex items-start justify-between gap-3">
+                <p className="truncate text-sm font-medium text-foreground/78" title={step.label}>{step.label}</p>
+                <Shimmer className={['shrink-0 text-xs', isActive ? 'text-primary/80' : isFailed ? 'text-red-400' : 'text-foreground/38'].join(' ')}>
+                  {displayStatus}
+                </Shimmer>
+              </div>
+              <p className="mt-0.5 text-xs leading-5 text-foreground/42">{step.description}</p>
+            </div>
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+export function WorkflowProgressPanel({
+  part,
+  onClose,
+}: {
+  part: WorkflowPart | null
+  onClose?: () => void
+}) {
+  if (!part || !isWorkflowSnapshotPart(part)) {
+    return null
+  }
+
+  const { completedSteps, statusLabel } = getWorkflowProgressState(part)
+  const progressPercent = Math.round((completedSteps / WORKFLOW_STEPS.length) * 100)
+  const detail = getWorkflowDetail(part)
+  const facts = getProgressFacts(part)
+
+  return (
+    <aside aria-live="polite" className="flex h-full min-h-0 w-full flex-col bg-card">
+      <div className="shrink-0 border-b border-border px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground/86">Audit progress</p>
+            <p className="mt-1 text-xs leading-5 text-foreground/58">{statusLabel}</p>
+          </div>
+          <div className="flex items-center gap-1">
+            {part.data.status === 'running' ? (
+              <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
+            ) : null}
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Hide audit progress"
+                className="flex size-8 items-center justify-center rounded-lg text-foreground/45 transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-4" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-foreground/50">{completedSteps} of {WORKFLOW_STEPS.length} steps complete</span>
+            <span className="font-mono text-primary/80">{progressPercent}%</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${progressPercent}%` }} />
+          </div>
+        </div>
+        <p className="mt-3 text-xs leading-5 text-foreground/44">{detail}</p>
+        {facts.length > 0 ? (
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
+            {facts.map((fact) => (
+              <div key={fact.label} className="flex items-baseline justify-between gap-2">
+                <dt className="text-foreground/38">{fact.label}</dt>
+                <dd className="font-mono text-foreground/68">{fact.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <WorkflowStepList part={part} />
+      </div>
+
+      {/* <div className="shrink-0 border-t border-border px-4 py-3 text-xs leading-5 text-foreground/42">
+        {part.data.status === 'success'
+          ? 'Complete. The audit result is available in the conversation.'
+          : part.data.status === 'suspended'
+            ? 'Waiting for your confirmation before the audit continues.'
+            : 'This panel updates as the workflow emits new step snapshots.'}
+      </div> */}
+    </aside>
+  )
+}
+
+export function WorkflowStickyTimeline({
+  part,
+  open,
+  onOpenChange,
+}: {
+  part: WorkflowPart | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  if (!part || !isWorkflowSnapshotPart(part)) {
+    return null
+  }
+
+  const { completedSteps, statusLabel } = getWorkflowProgressState(part)
+  const ToggleIcon = open ? ChevronUp : ChevronDown
+  const detail = getWorkflowDetail(part)
+
+  return (
+    <aside
+      aria-live="polite"
+      className="workflow-popover rounded-2xl border border-border bg-card/94 p-3 shadow-lg backdrop-blur-xl"
+    >
+      <button
+        type="button"
+        onClick={() => onOpenChange(!open)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 text-left"
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+          <Route className="size-4" aria-hidden="true" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-foreground/84" title={statusLabel}>{statusLabel}</span>
+          <span className="mt-0.5 block font-mono text-[10px] tracking-[0.12em] text-foreground/38 uppercase">
+            {completedSteps}/{WORKFLOW_STEPS.length} steps complete
+          </span>
+        </span>
+        <ToggleIcon className="size-4 shrink-0 text-foreground/45" aria-hidden="true" />
+      </button>
+      {open ? (
+        <>
+          <p className="mt-3 border-t border-border pt-3 text-xs leading-5 text-foreground/44">{detail}</p>
+          <ol className="mt-3 grid grid-cols-5 gap-2">
+            {WORKFLOW_STEPS.map((step) => {
+              const { isDone, isActive, isFailed } = getStepState(part, step.id)
+
+              return (
+                <li key={step.id} className="min-w-0">
+                  <div
+                    className={[
+                      'h-1 rounded-full transition-colors duration-200',
+                      isFailed ? 'bg-red-400' : isDone || isActive ? 'bg-primary' : 'bg-muted',
+                    ].join(' ')}
+                  />
+                  <p
+                    className={['mt-2 truncate text-xs font-medium', isActive ? 'text-foreground/86' : 'text-foreground/52'].join(' ')}
+                    title={step.label}
+                  >
+                    {step.label}
+                  </p>
+                </li>
+              )
+            })}
+          </ol>
+        </>
+      ) : null}
+    </aside>
+  )
+}

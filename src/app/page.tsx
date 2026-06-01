@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 
-import { AuditChatWorkspace } from '@/components/aso-audit/audit-chat-workspace'
+import { ConversationWorkspace } from '@/components/conversation/workspace'
 
 export const metadata: Metadata = {
   title: 'ASO Audit Agent',
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 }
 
 export default function Home() {
-  return <AuditChatWorkspace />
+  return <ConversationWorkspace />
 }

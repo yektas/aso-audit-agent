@@ -17,7 +17,7 @@ Turn the current single-page workflow runner into an agent-led audit conversatio
 
 ## Architecture
 
-`src/app/page.tsx` becomes composition only and renders an `AuditChatWorkspace`. The workspace owns selected-thread loading and chat state through a dedicated hook, while presentation is split into a conversation sidebar, welcome state, transcript, listing confirmation card, result presentation, and composer.
+`src/app/page.tsx` becomes composition only and renders an `AuditConversationWorkspace`. The workspace owns selected-thread loading and chat state through a dedicated hook, while presentation is split into a conversation sidebar, welcome state, transcript, listing confirmation card, result presentation, and composer.
 
 The frontend calls `/api/chat` for agent streaming. The agent decides when to invoke its registered `asoAuditWorkflow`. Workflow stream parts are interpreted as product UI:
 
