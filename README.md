@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ASO Audit Agent
 
-## Getting Started
+A Next.js + Mastra app that runs conversational App Store Optimization audits for iOS App Store listings.
 
-First, run the development server:
+Users paste an App Store URL or numeric app ID, confirm the matched listing, and receive a structured audit with scores, recommendations, competitor context, limitations, and supporting public evidence.
+
+## Setup
+
+Requirements:
+
+- Node.js `>=22.13.0`
+- OpenAI API key
+- Firecrawl API key
+
+```bash
+npm install
+cp .env.example .env
+```
+
+Fill in `.env`:
+
+```bash
+AGENT_MODEL=openai/gpt-5.5
+OPENAI_API_KEY=sk-...
+FIRECRAWL_API_KEY=fc-fc...
+```
+
+## Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Useful Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run mastra:dev
+```
 
-## Learn More
+`npm run mastra:dev` starts Mastra Studio using `src/mastra` as the Mastra directory and local `mastra.db` storage.
 
-To learn more about Next.js, take a look at the following resources:
+## How It Works
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `conversationAgent` handles the chat experience and invokes the ASO audit workflow when the user provides an App Store URL or app ID.
+- `asoAuditWorkflow` fetches Apple metadata, suspends for listing confirmation, collects public evidence, scores the listing, and returns the final audit.
+- `reportAgent` produces schema-validated scores and recommendations from supplied evidence only.
+- Conversation history is stored per anonymous browser visitor so users can return to previous audit threads.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+A more detailed flow diagram is available at [`docs/agent-flow.html`](docs/agent-flow.html).
 
-## Deploy on Vercel
+## Decisions Made
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Used a Mastra workflow instead of loose tool calls because the audit has a fixed sequence, a confirmation checkpoint, parallel scoring branches, and typed outputs.
+- Kept separate conversation and report agents so conversational behavior stays separate from evidence-grounded report generation.
+- Added an explicit listing confirmation step to prevent auditing the wrong App Store result.
+- Used public Apple APIs plus Firecrawl evidence instead of claiming access to private App Store Connect metadata.
+- Persisted anonymous conversation threads with Mastra memory so reloads and follow-up questions work without requiring login.
