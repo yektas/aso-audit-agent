@@ -113,6 +113,27 @@ export function hasCompletedReport(parts: unknown[]) {
   )
 }
 
+export function hasTerminalWorkflowResult(parts: unknown[]) {
+  return parts.some((part) => {
+    if (!isWorkflowPart(part) || !isWorkflowSnapshotPart(part)) {
+      return false
+    }
+
+    if (part.data.status === 'running' || part.data.status === 'suspended') {
+      return false
+    }
+
+    return (
+      getStructuredReportOutput(part.data) !== null ||
+      getRejectedWorkflowOutput(part.data) !== null ||
+      part.data.status === 'failed' ||
+      part.data.status === 'tripwire' ||
+      part.data.status === 'canceled' ||
+      part.data.status === 'bailed'
+    )
+  })
+}
+
 export function hasActiveWorkflow(parts: unknown[]) {
   return parts.some(
     (part) =>

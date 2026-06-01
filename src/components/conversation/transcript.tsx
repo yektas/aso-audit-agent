@@ -17,6 +17,7 @@ import { WorkflowEvent } from "./workflow-event";
 import {
   hasActiveWorkflow,
   hasCompletedReport,
+  hasTerminalWorkflowResult,
   isWorkflowPart,
   type WorkflowPart,
 } from "@/lib/workflow-parts";
@@ -83,6 +84,11 @@ export function Transcript({
 }) {
   const shouldReduceMotion = useReducedMotion();
   const isWorking = status === "submitted" || status === "streaming";
+  const latestMessageHasTerminalWorkflow = useMemo(
+    () => hasTerminalWorkflowResult(messages.at(-1)?.parts ?? []),
+    [messages],
+  );
+  const showWorkingIndicator = isWorking && !latestMessageHasTerminalWorkflow;
   const panelTransition: Transition = shouldReduceMotion
     ? { duration: 0 }
     : { duration: 0.28, ease: [0.645, 0.045, 0.355, 1] as [number, number, number, number] };
@@ -172,7 +178,7 @@ export function Transcript({
                 </MessageContent>
               </Message>
             ))}
-            {isWorking && (
+            {showWorkingIndicator && (
               <Message from="assistant">
                 <MessageContent className="font-mono text-xs flex items-center gap-2 tracking-[0.16em] text-primary/70 uppercase">
                   <Shimmer>{workingText}</Shimmer>
