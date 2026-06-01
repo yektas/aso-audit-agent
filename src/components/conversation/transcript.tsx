@@ -121,7 +121,7 @@ export function Transcript({
                 <MessageContent
                   className={
                     message.role === "user"
-                      ? "rounded-2xl bg-primary px-4 py-3 text-primary-foreground"
+                      ? "rounded-2xl bg-muted! px-4 py-3"
                       : "w-full gap-1 text-foreground/86"
                   }
                 >
@@ -136,14 +136,14 @@ export function Transcript({
                       return message.role === "assistant" ? (
                         <MessageResponse
                           key={partKey}
-                          className="max-w-3xl leading-7 text-foreground/78"
+                          className="prose prose-sm dark:prose-invert max-w-3xl leading-7 text-foreground/78"
                         >
                           {part.text}
                         </MessageResponse>
                       ) : (
                         <p
                           key={partKey}
-                          className="whitespace-pre-wrap text-sm leading-6"
+                          className="prose dark:prose-invert text-foreground/84 whitespace-pre-wrap text-sm leading-6"
                         >
                           {part.text}
                         </p>

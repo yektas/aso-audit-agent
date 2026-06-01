@@ -8,7 +8,7 @@ import { ErrorPanel } from './error-panel'
 import { HistorySidebar } from './history-sidebar'
 import { PromptComposer } from './prompt-composer'
 import { Transcript } from './transcript'
-import { ThemeSwitcher } from './theme-switcher'
+import { ThemeSwitcher } from '../theme-switcher'
 import { WelcomePanel } from './welcome-panel'
 
 export function ConversationWorkspace() {

@@ -107,7 +107,7 @@ function RecommendationSupport({ recommendation }: { recommendation: Recommendat
   const sourceCount = recommendation.evidence.length
 
   return (
-    <details className="group mt-3 border-t border-border pt-2 text-xs">
+    <details className="prose group mt-3 border-t border-border pt-2 text-xs">
       <summary className="flex list-none items-center gap-2 py-1 text-foreground/46 marker:content-none hover:text-foreground/64 [&::-webkit-details-marker]:hidden">
         <ChevronRight className="size-3 text-primary/64 transition-transform group-open:rotate-90" aria-hidden="true" />
         Details

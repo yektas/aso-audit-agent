@@ -268,9 +268,9 @@ function WorkflowStepList({ part }: { part: WorkflowDataPart }) {
             <div className="min-w-0 flex-1 pb-1">
               <div className="flex items-start justify-between gap-3">
                 <p className="truncate text-sm font-medium text-foreground/78" title={step.label}>{step.label}</p>
-                <Shimmer className={['shrink-0 text-xs', isActive ? 'text-primary/80' : isFailed ? 'text-red-400' : 'text-foreground/38'].join(' ')}>
+                <span className={['shrink-0 text-xs', isActive ? 'text-primary/80' : isFailed ? 'text-red-400' : 'text-foreground/38'].join(' ')}>
                   {displayStatus}
-                </Shimmer>
+                </span>
               </div>
               <p className="mt-0.5 text-xs leading-5 text-foreground/42">{step.description}</p>
             </div>
