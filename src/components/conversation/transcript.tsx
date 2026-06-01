@@ -1,9 +1,8 @@
 "use client";
 
 import type { DynamicToolUIPart, ToolUIPart } from "ai";
-import { PanelRightOpen } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion, type Transition } from "motion/react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import {
   Conversation,
@@ -19,7 +18,6 @@ import {
   hasActiveWorkflow,
   hasCompletedReport,
   isWorkflowPart,
-  isWorkflowSnapshotPart,
   type WorkflowPart,
 } from "@/lib/workflow-parts";
 import type { ConversationMessage } from "./message-types";
@@ -40,20 +38,6 @@ function isToolPart(part: unknown): part is ToolLikePart {
 
 function getToolLabel(part: ToolLikePart) {
   return part.type === "dynamic-tool" ? part.toolName : part.type.slice("tool-".length);
-}
-
-function getLatestWorkflowSnapshot(messages: ConversationMessage[]): WorkflowPart | null {
-  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
-    const parts = messages[messageIndex].parts;
-    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
-      const part = parts[partIndex];
-      if (isWorkflowPart(part) && isWorkflowSnapshotPart(part)) {
-        return part;
-      }
-    }
-  }
-
-  return null;
 }
 
 function getMessagePartKey(messageId: string, part: ConversationMessage["parts"][number]) {
@@ -82,17 +66,21 @@ export function Transcript({
   messages,
   status,
   pendingRunId,
+  workflowSnapshot,
+  progressOpen,
+  onProgressOpenChange,
   onConfirm,
   onReject,
 }: {
   messages: ConversationMessage[];
   status: string;
   pendingRunId: string | null;
+  workflowSnapshot: WorkflowPart | null;
+  progressOpen: boolean;
+  onProgressOpenChange: (open: boolean) => void;
   onConfirm: (runId: string) => void;
   onReject: (runId: string) => void;
 }) {
-  const latestWorkflowSnapshot = getLatestWorkflowSnapshot(messages);
-  const [progressOpen, setProgressOpen] = useState(true);
   const shouldReduceMotion = useReducedMotion();
   const isWorking = status === "submitted" || status === "streaming";
   const panelTransition: Transition = shouldReduceMotion
@@ -103,15 +91,15 @@ export function Transcript({
       return messages.some((message) => hasActiveWorkflow(message.parts)) ? "... Running audit" : "... Working"
     }, [messages])
   return (
-    <Conversation className="min-h-0 flex-1 lg:flex">
+    <Conversation className="min-h-0 flex-1 lg:flex overflow-x-hidden ">
       <ConversationContent className="min-w-0 flex-1 gap-6 px-5 pt-8 pb-10 sm:px-7">
         <div className="w-full">
-          {latestWorkflowSnapshot ? (
+          {workflowSnapshot ? (
             <div className="sticky top-4 z-10 mx-auto mb-6 max-w-3xl lg:hidden">
               <WorkflowStickyTimeline
-                part={latestWorkflowSnapshot}
+                part={workflowSnapshot}
                 open={progressOpen}
-                onOpenChange={setProgressOpen}
+                onOpenChange={onProgressOpenChange}
               />
             </div>
           ) : null}
@@ -194,48 +182,24 @@ export function Transcript({
           </div>
         </div>
       </ConversationContent>
-      {latestWorkflowSnapshot ? (
-        <>
-          <AnimatePresence>
-            {progressOpen ? (
-              <motion.div
-                key="workflow-progress-sidebar"
-                initial={{ opacity: 0, width: 0, x: 18 }}
-                animate={{ opacity: 1, width: "var(--workflow-progress-sidebar-width)", x: 0 }}
-                exit={{ opacity: 0, width: 0, x: 18 }}
-                transition={panelTransition}
-                className="hidden min-h-0 shrink-0 overflow-hidden border-l border-border [--workflow-progress-sidebar-width:21rem] lg:block xl:[--workflow-progress-sidebar-width:23rem]"
-              >
-                <WorkflowProgressPanel
-                  part={latestWorkflowSnapshot}
-                  onClose={() => setProgressOpen(false)}
-                />
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-          <AnimatePresence initial={false}>
-            {!progressOpen ? (
-              <motion.div
-                key="workflow-progress-toggle"
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: "3.25rem" }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={panelTransition}
-                className="hidden min-h-0 shrink-0 overflow-hidden border-l border-border bg-card lg:flex"
-              >
-                <button
-                  type="button"
-                  onClick={() => setProgressOpen(true)}
-                  title="Show audit progress"
-                  aria-label="Show audit progress"
-                  className="flex h-full w-[3.25rem] shrink-0 items-start justify-center pt-5 text-foreground/55 transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <PanelRightOpen className="size-4" aria-hidden="true" />
-                </button>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-        </>
+      {workflowSnapshot ? (
+        <AnimatePresence>
+          {progressOpen ? (
+            <motion.div
+              key="workflow-progress-sidebar"
+              initial={{ opacity: 0, width: 0, x: 18 }}
+              animate={{ opacity: 1, width: "var(--workflow-progress-sidebar-width)", x: 0 }}
+              exit={{ opacity: 0, width: 0, x: 18 }}
+              transition={panelTransition}
+              className="hidden min-h-0 shrink-0 overflow-hidden border-l border-border [--workflow-progress-sidebar-width:21rem] lg:block xl:[--workflow-progress-sidebar-width:23rem]"
+            >
+              <WorkflowProgressPanel
+                part={workflowSnapshot}
+                onClose={() => onProgressOpenChange(false)}
+              />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       ) : null}
       <ConversationScrollButton className="border-border bg-card/90 text-foreground hover:bg-muted" />
     </Conversation>
