@@ -1,6 +1,6 @@
 import type { ModelRouterModelId } from '@mastra/core/llm';
 
-export const DEFAULT_AGENT_MODEL = 'openrouter/openai/gpt-5-mini';
+export const DEFAULT_AGENT_MODEL = 'openai/gpt-5-mini';
 
 function getConfiguredAsoAuditModel(): ModelRouterModelId {
   const model = process.env.AGENT_MODEL?.trim() || DEFAULT_AGENT_MODEL;
