@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider } from "@/components/theme-provider";
 import { cn } from "@/lib/utils";
 
 const spaceGrotesk = Space_Grotesk({
@@ -31,15 +30,7 @@ export default function RootLayout({
       className={cn("h-full", "antialiased", spaceGrotesk.variable, jetBrainsMono.variable, "font-sans")}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
-          storageKey="aso-audit-theme"
-        >
-          {children}
-        </ThemeProvider>
+        {children}
       </body>
     </html>
   );

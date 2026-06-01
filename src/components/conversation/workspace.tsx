@@ -11,7 +11,6 @@ import { HistorySidebar } from './history-sidebar'
 import { PromptComposer } from './prompt-composer'
 import { Transcript } from './transcript'
 import { AuditProgressChip } from './workflow-progress'
-import { ThemeSwitcher } from '../theme-switcher'
 import { WelcomePanel } from './welcome-panel'
 
 export function ConversationWorkspace() {
@@ -74,7 +73,6 @@ export function ConversationWorkspace() {
               open={progressOpen}
               onToggle={() => setProgressOpen((open) => !open)}
             />
-            <ThemeSwitcher />
           </div>
         </header>
         {historyError && (
