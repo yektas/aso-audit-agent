@@ -193,10 +193,14 @@ export const collectListingPageEvidenceStep = createStep({
   id: LISTING_AUDIT_STEP_IDS.collectListingPageEvidence,
   inputSchema: confirmationOutputSchema,
   outputSchema: listingPageEvidenceOutputSchema,
-  execute: async ({ inputData }) => ({
-    ...inputData,
-    listingPageEvidence: await collectListingPageEvidence(inputData),
-  }),
+  execute: async ({ inputData }) => {
+    const listingPageEvidence = await collectListingPageEvidence(inputData);
+
+    return {
+      ...inputData,
+      listingPageEvidence: mergePublicScreenshotEvidence(inputData, listingPageEvidence),
+    };
+  },
 });
 
 export const collectMarketSignalsStep = createStep({
@@ -208,3 +212,31 @@ export const collectMarketSignalsStep = createStep({
     ...(await collectMarketSignalEvidence(inputData)),
   }),
 });
+
+function mergePublicScreenshotEvidence(
+  appMetadata: Pick<z.infer<typeof confirmationOutputSchema>, "screenshotUrls" | "ipadScreenshotUrls">,
+  listingPageEvidence: z.infer<typeof listingPageEvidenceOutputSchema>["listingPageEvidence"],
+) {
+  const lookupScreenshotUrls = dedupeUrls([...appMetadata.screenshotUrls, ...appMetadata.ipadScreenshotUrls]);
+  const mergedScreenshotUrls = dedupeUrls([...listingPageEvidence.screenshotImageUrls, ...lookupScreenshotUrls]).slice(0, 10);
+
+  if (mergedScreenshotUrls.length === listingPageEvidence.screenshotImageUrls.length) {
+    return listingPageEvidence;
+  }
+
+  const lookupOnlyCount = mergedScreenshotUrls.length - listingPageEvidence.screenshotImageUrls.length;
+  const crawlNote =
+    listingPageEvidence.screenshotImageUrls.length > 0
+      ? `Apple lookup metadata added ${lookupOnlyCount} public screenshot image URL${lookupOnlyCount === 1 ? "" : "s"} to the listing page screenshot evidence.`
+      : `Apple lookup metadata supplied ${lookupOnlyCount} public screenshot image URL${lookupOnlyCount === 1 ? "" : "s"} because Firecrawl did not return screenshot image URLs.`;
+
+  return {
+    ...listingPageEvidence,
+    screenshotImageUrls: mergedScreenshotUrls,
+    crawlNotes: [...listingPageEvidence.crawlNotes, crawlNote],
+  };
+}
+
+function dedupeUrls(urls: string[]) {
+  return Array.from(new Set(urls));
+}
