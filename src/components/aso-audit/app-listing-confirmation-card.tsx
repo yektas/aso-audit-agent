@@ -17,11 +17,13 @@ export type ListingConfirmationPayload = {
 export function AppListingConfirmationCard({
   payload,
   disabled,
+  resolved,
   onConfirm,
   onReject,
 }: {
   payload: ListingConfirmationPayload
   disabled: boolean
+  resolved?: boolean
   onConfirm: () => void
   onReject: () => void
 }) {
@@ -45,27 +47,33 @@ export function AppListingConfirmationCard({
           <p className="mt-3 font-mono text-[11px] tracking-[0.14em] text-white/38 uppercase">ID {payload.appStoreId}</p>
         </div>
       </div>
-      <div className="flex flex-col gap-2 border-t border-white/10 bg-black/15 p-3 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled}
-          onClick={onReject}
-          className="h-10 rounded-xl border-white/15 bg-transparent px-4 text-white hover:bg-white/8 hover:text-white"
-        >
-          <XIcon className="size-4" />
-          Not this app
-        </Button>
-        <Button
-          type="button"
-          disabled={disabled}
-          onClick={onConfirm}
-          className="h-10 rounded-xl bg-[#ccff00] px-4 font-semibold text-black hover:bg-[#d7ff39]"
-        >
-          <CheckIcon className="size-4" />
-          Confirm and audit
-        </Button>
-      </div>
+      {resolved ? (
+        <div className="border-t border-white/10 bg-black/15 px-4 py-3 font-mono text-[11px] tracking-[0.14em] text-white/42 uppercase">
+          Listing confirmation recorded
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2 border-t border-white/10 bg-black/15 p-3 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled}
+            onClick={onReject}
+            className="h-10 rounded-xl border-white/15 bg-transparent px-4 text-white hover:bg-white/8 hover:text-white"
+          >
+            <XIcon className="size-4" />
+            Not this app
+          </Button>
+          <Button
+            type="button"
+            disabled={disabled}
+            onClick={onConfirm}
+            className="h-10 rounded-xl bg-[#ccff00] px-4 font-semibold text-black hover:bg-[#d7ff39]"
+          >
+            <CheckIcon className="size-4" />
+            Confirm and audit
+          </Button>
+        </div>
+      )}
     </section>
   )
 }

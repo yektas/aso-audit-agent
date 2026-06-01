@@ -91,15 +91,26 @@ export function AuditWorkflowEvent({
   const recommendations = getAuditRecommendations(part.data)
   const runId = getWorkflowRunId(part)
 
-  if (part.data.status === 'suspended' && runId === pendingRunId && runId && isListingConfirmationPayload(confirmationPayload)) {
+  if (part.data.status === 'suspended' && isListingConfirmationPayload(confirmationPayload)) {
+    const isPending = runId !== null && runId === pendingRunId
+
     return (
       <div className="mt-2 w-full max-w-xl">
         <p className="text-sm text-white/66">{confirmationPayload.message}</p>
         <AppListingConfirmationCard
           payload={confirmationPayload}
-          disabled={disabled}
-          onConfirm={() => onConfirm(runId)}
-          onReject={() => onReject(runId)}
+          disabled={disabled || !isPending}
+          resolved={!isPending}
+          onConfirm={() => {
+            if (runId) {
+              onConfirm(runId)
+            }
+          }}
+          onReject={() => {
+            if (runId) {
+              onReject(runId)
+            }
+          }}
         />
       </div>
     )

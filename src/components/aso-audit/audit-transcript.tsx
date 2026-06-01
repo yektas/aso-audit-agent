@@ -1,5 +1,12 @@
 'use client'
 
+import type { ReasoningUIPart } from 'ai'
+
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from '@/components/ai-elements/reasoning'
 import {
   Conversation,
   ConversationContent,
@@ -9,6 +16,10 @@ import { Message, MessageContent, MessageResponse } from '@/components/ai-elemen
 
 import { AuditWorkflowEvent, isAuditWorkflowPart } from './audit-workflow-event'
 import type { AuditMessage } from './types'
+
+function isReasoningPart(part: unknown): part is ReasoningUIPart {
+  return typeof part === 'object' && part !== null && 'type' in part && part.type === 'reasoning'
+}
 
 export function AuditTranscript({
   messages,
@@ -49,6 +60,22 @@ export function AuditTranscript({
                     <p key={`${message.id}-text-${index}`} className="whitespace-pre-wrap text-sm leading-6">
                       {part.text}
                     </p>
+                  )
+                }
+
+                if (isReasoningPart(part) && part.text.trim().length > 0) {
+                  return (
+                    <Reasoning
+                      key={`${message.id}-reasoning-${index}`}
+                      className="mt-2 w-full max-w-2xl"
+                      defaultOpen={part.state === 'streaming'}
+                      isStreaming={part.state === 'streaming'}
+                    >
+                      <ReasoningTrigger className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-white/58 hover:text-white/84" />
+                      <ReasoningContent className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-white/62">
+                        {part.text}
+                      </ReasoningContent>
+                    </Reasoning>
                   )
                 }
 

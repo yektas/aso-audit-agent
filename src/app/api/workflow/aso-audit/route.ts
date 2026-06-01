@@ -55,6 +55,11 @@ function hasSuspendedRun(messages: UIMessage[], runId: string) {
   )
 }
 
+async function isStoredRunSuspended(runId: string) {
+  const state = await mastra.getWorkflowById('aso-audit-workflow').getWorkflowRunById(runId)
+  return state?.status === 'suspended'
+}
+
 function getWorkflowContextText(part: WorkflowDataPart) {
   const output = part.data.steps?.['full-aso-audit']?.output
   if (part.data.status === 'success' && typeof output === 'object' && output !== null && 'recommendations' in output) {
@@ -148,7 +153,7 @@ export async function POST(req: Request) {
   }
 
   const messages = await loadStoredMessages(memory, threadId, session.resourceId)
-  if (!hasSuspendedRun(messages, runId)) {
+  if (!hasSuspendedRun(messages, runId) || !(await isStoredRunSuspended(runId))) {
     return appendAuditVisitorCookie(NextResponse.json({ error: 'Suspended audit not found.' }, { status: 404 }), session)
   }
 

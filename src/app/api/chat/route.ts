@@ -14,6 +14,10 @@ type ChatParams = {
   threadId?: string
 } & Record<string, unknown>
 
+const APP_STORE_URL_PATTERN = /https?:\/\/apps\.apple\.com\/\S*\/id\d+/i
+const APP_STORE_ID_PATTERN = /^\s*\d{5,}\s*$/
+const AUDIT_WORKFLOW_TOOL_NAME = 'workflow-asoAuditWorkflow'
+
 function getThreadId(value: unknown) {
   if (typeof value !== 'string') {
     return null
@@ -21,6 +25,27 @@ function getThreadId(value: unknown) {
 
   const trimmed = value.trim()
   return trimmed.length > 0 ? trimmed : null
+}
+
+function isTextPart(part: unknown): part is { type: 'text'; text: string } {
+  return (
+    typeof part === 'object' &&
+    part !== null &&
+    'type' in part &&
+    part.type === 'text' &&
+    'text' in part &&
+    typeof part.text === 'string'
+  )
+}
+
+function hasAppListingInput(messages: unknown[] | undefined) {
+  const lastMessage = messages?.at(-1)
+  if (typeof lastMessage !== 'object' || lastMessage === null || !('parts' in lastMessage) || !Array.isArray(lastMessage.parts)) {
+    return false
+  }
+
+  const text = lastMessage.parts.filter(isTextPart).map((part) => part.text).join('\n')
+  return APP_STORE_URL_PATTERN.test(text) || APP_STORE_ID_PATTERN.test(text)
 }
 
 function isSuspendedNestedWorkflowPart(part: unknown): part is WorkflowDataPart {
@@ -35,6 +60,39 @@ function isSuspendedNestedWorkflowPart(part: unknown): part is WorkflowDataPart 
     'status' in part.data &&
     part.data.status === 'suspended'
   )
+}
+
+function getWorkflowRunId(part: WorkflowDataPart) {
+  const data = part.data as WorkflowDataPart['data'] & { runId?: unknown }
+  return part.id ?? (typeof data.runId === 'string' ? data.runId : null)
+}
+
+async function getAutoResumeOverride(memory: MastraMemory, threadId: string, resourceId: string) {
+  const recalled = await memory.recall({ threadId, resourceId, perPage: false })
+  const messageList = new MessageList({ threadId, resourceId })
+  messageList.add(recalled.messages, 'memory')
+  const messages = messageList.get.all.aiV6.ui()
+
+  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const parts = messages[messageIndex].parts
+
+    for (let partIndex = parts.length - 1; partIndex >= 0; partIndex -= 1) {
+      const part = parts[partIndex]
+      if (!isSuspendedNestedWorkflowPart(part)) {
+        continue
+      }
+
+      const runId = getWorkflowRunId(part)
+      if (!runId) {
+        return undefined
+      }
+
+      const state = await mastra.getWorkflowById('aso-audit-workflow').getWorkflowRunById(runId)
+      return state?.status === 'suspended' ? undefined : false
+    }
+  }
+
+  return undefined
 }
 
 async function persistSuspendedWorkflowPart(
@@ -101,13 +159,24 @@ export async function POST(req: Request) {
     return appendAuditVisitorCookie(NextResponse.json({ error: 'Conversation not found.' }, { status: 404 }), session)
   }
 
+  const autoResumeSuspendedTools = await getAutoResumeOverride(memory, thread.id, session.resourceId)
+  const forceAuditWorkflow = hasAppListingInput(params.messages)
   const { threadId: _threadId, memory: _memory, ...mastraParams } = params
   const stream = await handleChatStream({
     version: 'v6',
     mastra,
     agentId: AUDIT_AGENT_ID,
+    sendReasoning: true,
     params: {
       ...mastraParams,
+      ...(forceAuditWorkflow
+        ? {
+            autoResumeSuspendedTools: false,
+            toolChoice: { type: 'tool' as const, toolName: AUDIT_WORKFLOW_TOOL_NAME },
+          }
+        : autoResumeSuspendedTools === false
+          ? { autoResumeSuspendedTools }
+          : {}),
       memory: {
         thread: {
           id: thread.id,
