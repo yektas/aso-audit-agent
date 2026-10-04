@@ -4,6 +4,14 @@ A Next.js + Mastra app that runs conversational App Store Optimization audits fo
 
 Users paste an App Store URL or numeric app ID, confirm the matched listing, and receive a structured audit with scores, recommendations, competitor context, limitations, and supporting public evidence.
 
+## Workflow explainer
+
+Watch how the app confirms a listing, collects public evidence, scores three branches in parallel, and produces recommendations with follow-up conversation and saved history.
+
+[![ASO Audit Agent workflow explainer: public evidence flowing into the audit](docs/assets/aso-audit-explainer-preview.jpg)](https://raw.githubusercontent.com/yektas/aso-audit-agent/main/docs/assets/aso-audit-explainer.mp4)
+
+[Watch the explainer](https://raw.githubusercontent.com/yektas/aso-audit-agent/main/docs/assets/aso-audit-explainer.mp4) · [Download the MP4](docs/assets/aso-audit-explainer.mp4) · [Source and rendering instructions](videos/aso-explainer/README.md) — 37.75 seconds, 7.2 MB, 1920 × 1080, 60 FPS. Silent, with on-screen explanations; the example score is illustrative.
+
 ## Setup
 
 Requirements:

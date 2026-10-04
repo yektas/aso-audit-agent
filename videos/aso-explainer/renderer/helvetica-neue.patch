@@ -1,0 +1,46 @@
+diff --git a/crates/psychopomp-render/src/render/fonts.rs b/crates/psychopomp-render/src/render/fonts.rs
+index 2792b82..511874f 100644
+--- a/crates/psychopomp-render/src/render/fonts.rs
++++ b/crates/psychopomp-render/src/render/fonts.rs
+@@ -1,3 +1,3 @@
+-//! The font database. CommitMono is compiled in, so every machine shapes the
+-//! same text with the same weights; installed fonts only supply glyphs it lacks
+-//! (chess pieces, CJK, emoji). See `assets/fonts/OFL.txt`.
++//! Font database for the ASO explainer variant. Installed Helvetica Neue is
++//! selected for scene text. CommitMono remains bundled and verified separately;
++//! see `assets/fonts/OFL.txt`.
+@@ -6,2 +6,2 @@ use cosmic_text::{Family, FontSystem, fontdb};
+-/// The bundled monospace family used for code and labels.
+-pub(crate) const MONO: Family<'static> = Family::Name("CommitMono");
++/// The installed Helvetica Neue family selected for this explainer.
++pub(crate) const MONO: Family<'static> = Family::Name("Helvetica Neue");
+@@ -40 +40 @@ pub(crate) fn font_system() -> FontSystem {
+-    db.set_monospace_family("CommitMono");
++    db.set_monospace_family("Helvetica Neue");
+@@ -47,0 +48,23 @@ mod tests {
++    #[test]
++    fn explainer_family_resolves_to_helvetica_neue() {
++        let fonts = super::font_system();
++        let db = fonts.db();
++        for weight in [Weight::NORMAL, Weight::BOLD] {
++            let id = db
++                .query(&Query {
++                    families: &[super::MONO],
++                    weight,
++                    stretch: Stretch::Normal,
++                    style: Style::Normal,
++                })
++                .expect("Helvetica Neue must be installed to render this explainer");
++            assert!(
++                db.face(id)
++                    .unwrap()
++                    .families
++                    .iter()
++                    .any(|(name, _)| name == "Helvetica Neue")
++            );
++        }
++    }
++
+@@ -69 +92 @@ mod tests {
+-                    families: &[super::MONO],
++                    families: &[cosmic_text::Family::Name("CommitMono")],
